@@ -71,6 +71,9 @@ void GPSRtk::connectGPS(const QString &device, QStringView gps_type)
     } else if (gps_type.contains(QStringLiteral("femtomes"), Qt::CaseInsensitive)) {
         type = GPSProvider::GPSType::femto;
         qCDebug(GPSRtkLog) << "Connecting Femtomes device";
+    } else if (gps_type.contains(QStringLiteral("wtrtk"), Qt::CaseInsensitive)) {
+        type = GPSProvider::GPSType::wtrtk;
+        qCDebug(GPSRtkLog) << "Connecting WTRTK device";
     } else {
         type = GPSProvider::GPSType::u_blox;
         qCDebug(GPSRtkLog) << "Connecting U-blox device";

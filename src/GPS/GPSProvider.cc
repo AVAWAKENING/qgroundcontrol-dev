@@ -15,6 +15,7 @@
 #include <base_station.h>
 #include <definitions.h>
 #include <femtomes.h>
+#include <nmea.h>
 #include <sbf.h>
 #include <ubx.h>
 
@@ -63,6 +64,7 @@ void GPSProvider::_publishSensorGPS()
 
 void GPSProvider::_gotRTCMData(const uint8_t *data, size_t len)
 {
+    qCDebug(GPSProviderLog) << "RTCM data received, size:" << len;
     const QByteArray message(reinterpret_cast<const char*>(data), len);
     emit RTCMDataUpdate(message);
 }
@@ -94,6 +96,7 @@ int GPSProvider::callback(GPSCallbackType type, void *data1, int data2)
     case GPSCallbackType::setBaudrate:
         return (_serial->setBaudRate(data2) ? 0 : -1);
     case GPSCallbackType::gotRTCMMessage:
+        qCDebug(GPSProviderLog) << "GPSCallbackType::gotRTCMMessage called, data2:" << data2;
         _gotRTCMData(reinterpret_cast<uint8_t*>(data1), data2);
         break;
     case GPSCallbackType::surveyInStatus:
@@ -226,6 +229,10 @@ GPSBaseStationSupport *GPSProvider::_connectGPS()
     case GPSType::femto:
         gpsDriver = new GPSDriverFemto(&_callbackEntry, this, &_sensorGps, &_satelliteInfo);
         baudrate = 0;
+        break;
+    case GPSType::wtrtk:
+        gpsDriver = new GPSDriverNMEA(&_callbackEntry, this, &_sensorGps, &_satelliteInfo);
+        baudrate = 115200;
         break;
     default:
         // GPSDriverEmlidReach, GPSDriverMTK, GPSDriverNMEA
