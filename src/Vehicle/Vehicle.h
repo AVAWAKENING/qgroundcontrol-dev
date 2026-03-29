@@ -213,6 +213,8 @@ public:
     Q_PROPERTY(quint64              mavlinkReceivedCount        READ mavlinkReceivedCount                                           NOTIFY mavlinkStatusChanged)
     Q_PROPERTY(quint64              mavlinkLossCount            READ mavlinkLossCount                                               NOTIFY mavlinkStatusChanged)
     Q_PROPERTY(float                mavlinkLossPercent          READ mavlinkLossPercent                                             NOTIFY mavlinkStatusChanged)
+    Q_PROPERTY(float                mavlinkMessageRate          READ mavlinkMessageRate                                             NOTIFY mavlinkMessageRateChanged)
+    Q_PROPERTY(float                mavlinkByteRate             READ mavlinkByteRate                                                NOTIFY mavlinkByteRateChanged)
     Q_PROPERTY(GimbalController*    gimbalController            READ gimbalController                                               CONSTANT)
     Q_PROPERTY(bool                 hasGripper                  READ hasGripper                                                     CONSTANT)
     Q_PROPERTY(bool                 isROIEnabled                READ isROIEnabled                                                   NOTIFY isROIEnabledChanged)
@@ -804,6 +806,8 @@ public:
     quint64     mavlinkReceivedCount    () const{ return _mavlinkReceivedCount; }    /// Total number of sucessful messages received
     quint64     mavlinkLossCount        () const{ return _mavlinkLossCount; }        /// Total number of lost messages
     float       mavlinkLossPercent      () const{ return _mavlinkLossPercent; }      /// Running loss rate
+    float       mavlinkMessageRate      () const{ return _mavlinkMessageRate5s; }    /// 5-second average message rate (messages/sec)
+    float       mavlinkByteRate         () const{ return _mavlinkByteRate5s; }       /// 5-second average byte rate (bytes/sec)
 
     bool        isROIEnabled            () const{ return _isROIEnabled; }
 
@@ -908,6 +912,8 @@ signals:
     void requestProtocolVersion         (unsigned version);
     void mavlinkStatusChanged           ();
     void mavlinkSigningChanged          ();
+    void mavlinkMessageRateChanged      ();
+    void mavlinkByteRateChanged         ();
 
     void isROIEnabledChanged            ();
     void roiCoordChanged                (const QGeoCoordinate& centerCoord);
@@ -941,7 +947,7 @@ private slots:
     void _updateHobbsMeter                  ();
     void _vehicleParamLoaded                (bool ready);
     void _sendQGCTimeToVehicle              ();
-    void _mavlinkMessageStatus              (int uasId, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent);
+    void _mavlinkMessageStatus              (int uasId, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent, uint64_t totalBytes);
     void _orbitTelemetryTimeout             ();
     void _updateFlightTime                  ();
     void _gotProgressUpdate                 (float progressValue);
@@ -1138,6 +1144,14 @@ private:
     uint64_t    _mavlinkReceivedCount   = 0;
     uint64_t    _mavlinkLossCount       = 0;
     float       _mavlinkLossPercent     = 0.0f;
+    float       _mavlinkMessageRate5s   = 0.0f;   ///< 5-second average message rate
+    float       _mavlinkByteRate5s      = 0.0f;   ///< 5-second average byte rate
+    
+    // Rate calculation members
+    QElapsedTimer           _messageRateTimer;
+    uint64_t    _lastMessageCount         = 0;
+    uint64_t    _lastByteCount            = 0;
+    static const int        _messageRateUpdateIntervalMsecs = 5000;  ///< 5 seconds for rate calculation
 
     float       _loadProgress           = 0.0f;
 

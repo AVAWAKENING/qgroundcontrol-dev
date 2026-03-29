@@ -78,7 +78,7 @@ signals:
     /// Message received and directly copied via signal
     void messageReceived(LinkInterface *link, const mavlink_message_t &message);
 
-    void mavlinkMessageStatus(int sysid, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent);
+    void mavlinkMessageStatus(int sysid, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent, uint64_t totalBytes);
 
 public slots:
     /// Receive bytes from a communication interface and constructs a MAVLink packet
@@ -122,6 +122,7 @@ private:
     QSet<QPair<uint8_t,uint8_t>> _firstMessageSeen;
     uint64_t _totalReceiveCounter[MAVLINK_COMM_NUM_BUFFERS]{};  ///< The total number of successfully received messages
     uint64_t _totalLossCounter[MAVLINK_COMM_NUM_BUFFERS]{};     ///< Total messages lost during transmission.
+    uint64_t _totalByteCounter[MAVLINK_COMM_NUM_BUFFERS]{};     ///< Total bytes received
     float _runningLossPercent[MAVLINK_COMM_NUM_BUFFERS]{};      ///< Loss rate
 
     unsigned _currentVersion = 100;

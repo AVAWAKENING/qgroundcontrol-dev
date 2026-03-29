@@ -244,6 +244,18 @@ SettingsPage {
 
         LabelledLabel {
             Layout.fillWidth:   true
+            label:              qsTr("Message rate (5s avg):")
+            labelText:          _activeVehicle ? _activeVehicle.mavlinkMessageRate.toFixed(1) + ' msg/s' : _notConnectedStr
+        }
+
+        LabelledLabel {
+            Layout.fillWidth:   true
+            label:              qsTr("Byte rate (5s avg):")
+            labelText:          _activeVehicle ? _activeVehicle.mavlinkByteRate.toFixed(0) + ' B/s' : _notConnectedStr
+        }
+
+        LabelledLabel {
+            Layout.fillWidth:   true
             label:              qsTr("Signing:")
             labelText:          _activeVehicle ? (_activeVehicle.mavlinkSigning ? "On" : "Off") : _notConnectedStr
         }

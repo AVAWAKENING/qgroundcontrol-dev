@@ -74,6 +74,7 @@ void MAVLinkProtocol::resetMetadataForLink(LinkInterface *link)
     const uint8_t channel = link->mavlinkChannel();
     _totalReceiveCounter[channel] = 0;
     _totalLossCounter[channel] = 0;
+    _totalByteCounter[channel] = 0;
     _runningLossPercent[channel] = 0.f;
 
     link->setDecodedFirstMavlinkPacket(false);
@@ -155,6 +156,9 @@ void MAVLinkProtocol::_updateVersion(LinkInterface *link, uint8_t mavlinkChannel
 void MAVLinkProtocol::_updateCounters(uint8_t mavlinkChannel, const mavlink_message_t &message)
 {
     _totalReceiveCounter[mavlinkChannel]++;
+    
+    // Count message bytes (message.len is payload length, plus header and signature)
+    _totalByteCounter[mavlinkChannel] += (MAVLINK_NUM_HEADER_BYTES + message.len + MAVLINK_NUM_NON_PAYLOAD_BYTES);
 
     uint8_t &lastSeq = _lastIndex[message.sysid][message.compid];
 
@@ -277,7 +281,8 @@ bool MAVLinkProtocol::_updateStatus(LinkInterface *link, const SharedLinkInterfa
 {
     if ((_totalReceiveCounter[mavlinkChannel] % 31) == 0) {
         const uint64_t totalSent = _totalReceiveCounter[mavlinkChannel] + _totalLossCounter[mavlinkChannel];
-        emit mavlinkMessageStatus(message.sysid, totalSent, _totalReceiveCounter[mavlinkChannel], _totalLossCounter[mavlinkChannel], _runningLossPercent[mavlinkChannel]);
+        const uint64_t totalBytes = _totalByteCounter[mavlinkChannel];
+        emit mavlinkMessageStatus(message.sysid, totalSent, _totalReceiveCounter[mavlinkChannel], _totalLossCounter[mavlinkChannel], _runningLossPercent[mavlinkChannel], totalBytes);
     }
 
     emit messageReceived(link, message);

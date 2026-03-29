@@ -3539,13 +3539,38 @@ void Vehicle::_vehicleParamLoaded(bool ready)
     }
 }
 
-void Vehicle::_mavlinkMessageStatus(int uasId, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent)
+void Vehicle::_mavlinkMessageStatus(int uasId, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent, uint64_t totalBytes)
 {
     if(uasId == _id) {
         _mavlinkSentCount       = totalSent;
         _mavlinkReceivedCount   = totalReceived;
         _mavlinkLossCount       = totalLoss;
         _mavlinkLossPercent     = lossPercent;
+        
+        // Calculate 5-second average message rate and byte rate
+        if (!_messageRateTimer.isValid()) {
+            _messageRateTimer.start();
+            _lastMessageCount = totalReceived;
+            _lastByteCount = totalBytes;
+        } else {
+            qint64 elapsed = _messageRateTimer.elapsed();
+            if (elapsed >= _messageRateUpdateIntervalMsecs) {
+                uint64_t msgDelta = totalReceived - _lastMessageCount;
+                uint64_t byteDelta = totalBytes - _lastByteCount;
+                float elapsedSecs = elapsed / 1000.0f;
+                
+                _mavlinkMessageRate5s = static_cast<float>(msgDelta) / elapsedSecs;
+                _mavlinkByteRate5s = static_cast<float>(byteDelta) / elapsedSecs;
+                
+                _lastMessageCount = totalReceived;
+                _lastByteCount = totalBytes;
+                _messageRateTimer.restart();
+                
+                emit mavlinkMessageRateChanged();
+                emit mavlinkByteRateChanged();
+            }
+        }
+        
         emit mavlinkStatusChanged();
     }
 }
