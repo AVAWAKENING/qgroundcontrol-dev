@@ -475,10 +475,13 @@ void RequestMetaDataTypeStateMachine::_stateRequestMetaDataJsonFallback(StateMac
 
 void RequestMetaDataTypeStateMachine::_stateRequestTranslationJson(StateMachine* stateMachine)
 {
+    // Disabled translation json download to speed up initial connection
+    // Parameters will use English descriptions
     RequestMetaDataTypeStateMachine*    requestMachine  = static_cast<RequestMetaDataTypeStateMachine*>(stateMachine);
-    CompInfo*                           compInfo        = requestMachine->compInfo();
-    const QString                       uri             = compInfo->uriTranslation();
-    requestMachine->_requestFile("", false, uri, requestMachine->_jsonTranslationFileName);
+    Q_UNUSED(requestMachine);
+    Q_UNUSED(stateMachine);
+    // Skip translation download - advance immediately
+    requestMachine->advance();
 }
 
 void RequestMetaDataTypeStateMachine::_stateRequestTranslate(StateMachine* stateMachine)

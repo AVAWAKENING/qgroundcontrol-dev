@@ -149,10 +149,11 @@ void InitialConnectStateMachine::_autopilotVersionRequestMessageHandler(void* re
             nullStr[8] = 0;
             vehicle->_gitHash = nullStr;
         }
-        if (QGCCorePlugin::instance()->options()->checkFirmwareVersion() && !vehicle->_checkLatestStableFWDone) {
-            vehicle->_checkLatestStableFWDone = true;
-            vehicle->_firmwarePlugin->checkIfIsLatestStable(vehicle);
-        }
+        // Disabled firmware version check to speed up initial connection
+        // if (QGCCorePlugin::instance()->options()->checkFirmwareVersion() && !vehicle->_checkLatestStableFWDone) {
+        //     vehicle->_checkLatestStableFWDone = true;
+        //     vehicle->_firmwarePlugin->checkIfIsLatestStable(vehicle);
+        // }
         emit vehicle->gitHashChanged(vehicle->_gitHash);
 
         vehicle->_setCapabilities(autopilotVersion.capabilities);

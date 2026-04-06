@@ -432,6 +432,10 @@ void QGCApplication::reportMissingParameter(int componentId, const QString &name
 
 void QGCApplication::_missingParamsDisplay()
 {
+    _missingParams.clear();
+    return;
+    // ... 原有代码不再执行
+
     if (_missingParams.isEmpty()) {
         return;
     }
