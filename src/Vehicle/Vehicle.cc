@@ -78,7 +78,7 @@ QGC_LOGGING_CATEGORY(VehicleLog, "VehicleLog")
 #define SET_HOME_TERRAIN_ALT_MIN -500
 
 // After a second GCS has requested control and we have given it permission to takeover, we will remove takeover permission automatically after this timeout
-// If the second GCS didn't get control 
+// If the second GCS didn't get control
 #define REQUEST_OPERATOR_CONTROL_ALLOW_TAKEOVER_TIMEOUT_MSECS 10000
 
 const QString guided_mode_not_supported_by_vehicle = QObject::tr("Guided mode not supported by Vehicle.");
@@ -126,6 +126,7 @@ Vehicle::Vehicle(LinkInterface*             link,
 
     connect(MAVLinkProtocol::instance(), &MAVLinkProtocol::messageReceived,        this, &Vehicle::_mavlinkMessageReceived);
     connect(MAVLinkProtocol::instance(), &MAVLinkProtocol::mavlinkMessageStatus,   this, &Vehicle::_mavlinkMessageStatus);
+    connect(MAVLinkProtocol::instance(), &MAVLinkProtocol::uplinkByteCountUpdated, this, &Vehicle::_updateUplinkByteRate);
 
     connect(this, &Vehicle::flightModeChanged,          this, &Vehicle::_handleFlightModeChanged);
     connect(this, &Vehicle::armedChanged,               this, &Vehicle::_announceArmedChanged);
@@ -657,7 +658,7 @@ void Vehicle::_mavlinkMessageReceived(LinkInterface* link, mavlink_message_t mes
     }
     case MAVLINK_MSG_ID_CONTROL_STATUS:
         _handleControlStatus(message);
-        break;   
+        break;
     case MAVLINK_MSG_ID_COMMAND_LONG:
         _handleCommandLong(message);
         break;
@@ -1502,6 +1503,7 @@ bool Vehicle::sendMessageOnLinkThreadSafe(LinkInterface* link, mavlink_message_t
     link->writeBytesThreadSafe((const char*)buffer, len);
     _messagesSent++;
     emit messagesSentChanged();
+    _updateUplinkMessageRate(_messagesSent);
 
     return true;
 }
@@ -2133,8 +2135,8 @@ double Vehicle::minimumEquivalentAirspeed()
     return _firmwarePlugin->minimumEquivalentAirspeed(this);
 }
 
-bool Vehicle::hasGripper()  const 
-{ 
+bool Vehicle::hasGripper()  const
+{
     return _firmwarePlugin->hasGripper(this);
 }
 
@@ -2633,12 +2635,12 @@ bool Vehicle::_commandCanBeDuplicated(MAV_CMD command)
 }
 
 void Vehicle::_sendMavCommandWorker(
-    bool        commandInt, 
-    bool        showError, 
+    bool        commandInt,
+    bool        showError,
     const MavCmdAckHandlerInfo_t* ackHandlerInfo,
-    int         targetCompId, 
-    MAV_CMD     command, 
-    MAV_FRAME   frame, 
+    int         targetCompId,
+    MAV_CMD     command,
+    MAV_FRAME   frame,
     float param1, float param2, float param3, float param4, double param5, double param6, float param7)
 {
     // We can't send commands to compIdAll using this method. The reason being that we would get responses back possibly from multiple components
@@ -2931,7 +2933,7 @@ void Vehicle::_waitForMavlinkMessageMessageReceivedHandler(const mavlink_message
         // We use any incoming message as a trigger to check timeouts on message requests
 
         for (auto& compIdEntry : _requestMessageInfoMap) {
-            for (auto requestMessageInfo : compIdEntry) {    
+            for (auto requestMessageInfo : compIdEntry) {
                 if (requestMessageInfo->messageWaitElapsedTimer.isValid() && requestMessageInfo->messageWaitElapsedTimer.elapsed() > (qgcApp()->runningUnitTests() ? 50 : 1000)) {
                     auto resultHandler      = requestMessageInfo->resultHandler;
                     auto resultHandlerData  = requestMessageInfo->resultHandlerData;
@@ -3546,8 +3548,9 @@ void Vehicle::_mavlinkMessageStatus(int uasId, uint64_t totalSent, uint64_t tota
         _mavlinkReceivedCount   = totalReceived;
         _mavlinkLossCount       = totalLoss;
         _mavlinkLossPercent     = lossPercent;
-        
-        // Calculate 5-second average message rate and byte rate
+
+        // Calculate 1-second average message rate and byte rate (downlink)
+        // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
         if (!_messageRateTimer.isValid()) {
             _messageRateTimer.start();
             _lastMessageCount = totalReceived;
@@ -3558,20 +3561,66 @@ void Vehicle::_mavlinkMessageStatus(int uasId, uint64_t totalSent, uint64_t tota
                 uint64_t msgDelta = totalReceived - _lastMessageCount;
                 uint64_t byteDelta = totalBytes - _lastByteCount;
                 float elapsedSecs = elapsed / 1000.0f;
-                
-                _mavlinkMessageRate5s = static_cast<float>(msgDelta) / elapsedSecs;
-                _mavlinkByteRate5s = static_cast<float>(byteDelta) / elapsedSecs;
-                
+
+                _mavlinkMessageRate1s = static_cast<float>(msgDelta) / elapsedSecs;
+                _mavlinkByteRate1s = static_cast<float>(byteDelta) / elapsedSecs;
+
                 _lastMessageCount = totalReceived;
                 _lastByteCount = totalBytes;
                 _messageRateTimer.restart();
-                
+
                 emit mavlinkMessageRateChanged();
                 emit mavlinkByteRateChanged();
             }
         }
-        
+
         emit mavlinkStatusChanged();
+    }
+}
+
+// myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+void Vehicle::_updateUplinkByteRate(quint64 totalBytesSent)
+{
+    _mavlinkSentBytesCount = totalBytesSent;
+
+    if (!_uplinkRateTimer.isValid()) {
+        _uplinkRateTimer.start();
+        _lastSentByteCount = totalBytesSent;
+    } else {
+        qint64 elapsed = _uplinkRateTimer.elapsed();
+        if (elapsed >= _messageRateUpdateIntervalMsecs) {
+            uint64_t byteDelta = totalBytesSent - _lastSentByteCount;
+            float elapsedSecs = elapsed / 1000.0f;
+
+            _mavlinkSentByteRate1s = static_cast<float>(byteDelta) / elapsedSecs;
+
+            _lastSentByteCount = totalBytesSent;
+            _uplinkRateTimer.restart();
+
+            emit mavlinkSentByteRateChanged();
+        }
+    }
+}
+
+// myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+void Vehicle::_updateUplinkMessageRate(quint64 totalMessagesSent)
+{
+    if (!_uplinkRateTimer.isValid()) {
+        _uplinkRateTimer.start();
+        _lastSentMessageCount = totalMessagesSent;
+    } else {
+        qint64 elapsed = _uplinkRateTimer.elapsed();
+        if (elapsed >= _messageRateUpdateIntervalMsecs) {
+            uint64_t msgDelta = totalMessagesSent - _lastSentMessageCount;
+            float elapsedSecs = elapsed / 1000.0f;
+
+            _mavlinkSentMessageRate1s = static_cast<float>(msgDelta) / elapsedSecs;
+
+            _lastSentMessageCount = totalMessagesSent;
+            _uplinkRateTimer.restart();
+
+            emit mavlinkSentMessageRateChanged();
+        }
     }
 }
 
@@ -3697,8 +3746,8 @@ void Vehicle::doSetHome(const QGeoCoordinate& coord)
             disconnect(_currentDoSetHomeTerrainAtCoordinateQuery, &TerrainAtCoordinateQuery::terrainDataReceived, this, &Vehicle::_doSetHomeTerrainReceived);
             _currentDoSetHomeTerrainAtCoordinateQuery = nullptr;
         }
-        // Save the coord for using when our terrain data arrives. If there was a pending terrain query paired with an older coordinate it is safe to 
-        // Override now, as we just disconnected the signal that would trigger the command sending 
+        // Save the coord for using when our terrain data arrives. If there was a pending terrain query paired with an older coordinate it is safe to
+        // Override now, as we just disconnected the signal that would trigger the command sending
         _doSetHomeCoordinate = coord;
         // Now setup and trigger the new terrain query
         _currentDoSetHomeTerrainAtCoordinateQuery = new TerrainAtCoordinateQuery(true /* autoDelet */);
@@ -3978,7 +4027,7 @@ void Vehicle::sendGripperAction(QGCMAVLink::GRIPPER_OPTIONS gripperOption)
         case QGCMAVLink::Invalid_option:
             qDebug("unknown function");
             break;
-        default: 
+        default:
             break;
     }
 }
@@ -4037,7 +4086,7 @@ void Vehicle::startTimerRevertAllowTakeover()
     _timerRevertAllowTakeover.setInterval(operatorControlTakeoverTimeoutMsecs());
     // Disconnect any previous connections to avoid multiple handlers
     disconnect(&_timerRevertAllowTakeover, &QTimer::timeout, nullptr, nullptr);
-    
+
     connect(&_timerRevertAllowTakeover, &QTimer::timeout, this, [this](){
         if (MAVLinkProtocol::instance()->getSystemId() == _sysid_in_control) {
             this->requestOperatorControl(false);
@@ -4091,12 +4140,12 @@ void Vehicle::_requestOperatorControlAckHandler(void* resultHandlerData, int com
         default:
             break;
     }
-    
+
     Vehicle* vehicle = static_cast<Vehicle*>(resultHandlerData);
     if (!vehicle) {
         return;
     }
-    
+
     if (ack.result == MAV_RESULT_ACCEPTED) {
         qCDebug(VehicleLog) << "Operator control request accepted";
     } else {

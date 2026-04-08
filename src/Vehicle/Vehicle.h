@@ -215,6 +215,9 @@ public:
     Q_PROPERTY(float                mavlinkLossPercent          READ mavlinkLossPercent                                             NOTIFY mavlinkStatusChanged)
     Q_PROPERTY(float                mavlinkMessageRate          READ mavlinkMessageRate                                             NOTIFY mavlinkMessageRateChanged)
     Q_PROPERTY(float                mavlinkByteRate             READ mavlinkByteRate                                                NOTIFY mavlinkByteRateChanged)
+    Q_PROPERTY(quint64              mavlinkSentBytesCount       READ mavlinkSentBytesCount                                          NOTIFY mavlinkSentByteRateChanged)
+    Q_PROPERTY(float                mavlinkSentByteRate         READ mavlinkSentByteRate                                            NOTIFY mavlinkSentByteRateChanged)
+    Q_PROPERTY(float                mavlinkSentMessageRate      READ mavlinkSentMessageRate                                         NOTIFY mavlinkSentMessageRateChanged)
     Q_PROPERTY(GimbalController*    gimbalController            READ gimbalController                                               CONSTANT)
     Q_PROPERTY(bool                 hasGripper                  READ hasGripper                                                     CONSTANT)
     Q_PROPERTY(bool                 isROIEnabled                READ isROIEnabled                                                   NOTIFY isROIEnabledChanged)
@@ -394,7 +397,7 @@ public:
     Q_ENUM(PIDTuningTelemetryMode)
 
     Q_INVOKABLE void setPIDTuningTelemetryMode(PIDTuningTelemetryMode mode);
-    
+
     Q_INVOKABLE void forceArm           ();
 
     /// Sends PARAM_MAP_RC message to vehicle
@@ -677,7 +680,7 @@ public:
     // Callback info for sendMavCommandWithHandler
     typedef struct MavCmdAckHandlerInfo_s {
         MavCmdResultHandler     resultHandler;          ///> nullptr for no handler
-        void*                   resultHandlerData; 
+        void*                   resultHandlerData;
         MavCmdProgressHandler   progressHandler;
         void*                   progressHandlerData;    ///> nullptr for no handler
     } MavCmdAckHandlerInfo_t;
@@ -685,7 +688,7 @@ public:
     /// Sends the command and calls the callback with the result
     void sendMavCommandWithHandler(
         const MavCmdAckHandlerInfo_t* ackHandlerInfo,   ///> nullptr to signale no handlers
-        int compId, MAV_CMD command, 
+        int compId, MAV_CMD command,
         float param1 = 0.0f, float param2 = 0.0f, float param3 = 0.0f, float param4 = 0.0f, float param5 = 0.0f, float param6 = 0.0f, float param7 = 0.0f);
 
     /// Sends the command and calls the callback with the result
@@ -693,7 +696,7 @@ public:
     ///     @param resultHandleData Opaque data passed through callback
     void sendMavCommandIntWithHandler(
         const MavCmdAckHandlerInfo_t* ackHandlerInfo,   ///> nullptr to signale no handlers
-        int compId, MAV_CMD command, MAV_FRAME frame, 
+        int compId, MAV_CMD command, MAV_FRAME frame,
         float param1 = 0.0f, float param2 = 0.0f, float param3 = 0.0f, float param4 = 0.0f, double param5 = 0.0f, double param6 = 0.0f, float param7 = 0.0f);
 
     /// Sends the command and calls the fallback lambda function in
@@ -806,8 +809,11 @@ public:
     quint64     mavlinkReceivedCount    () const{ return _mavlinkReceivedCount; }    /// Total number of sucessful messages received
     quint64     mavlinkLossCount        () const{ return _mavlinkLossCount; }        /// Total number of lost messages
     float       mavlinkLossPercent      () const{ return _mavlinkLossPercent; }      /// Running loss rate
-    float       mavlinkMessageRate      () const{ return _mavlinkMessageRate5s; }    /// 5-second average message rate (messages/sec)
-    float       mavlinkByteRate         () const{ return _mavlinkByteRate5s; }       /// 5-second average byte rate (bytes/sec)
+    float       mavlinkMessageRate      () const{ return _mavlinkMessageRate1s; }    /// 1-second average message rate (messages/sec)
+    float       mavlinkByteRate         () const{ return _mavlinkByteRate1s; }       /// 1-second average byte rate (bytes/sec)
+    quint64     mavlinkSentBytesCount   () const{ return _mavlinkSentBytesCount; }   // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    float       mavlinkSentByteRate     () const{ return _mavlinkSentByteRate1s; }    // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    float       mavlinkSentMessageRate  () const{ return _mavlinkSentMessageRate1s; }  // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
 
     bool        isROIEnabled            () const{ return _isROIEnabled; }
 
@@ -914,6 +920,8 @@ signals:
     void mavlinkSigningChanged          ();
     void mavlinkMessageRateChanged      ();
     void mavlinkByteRateChanged         ();
+    void mavlinkSentByteRateChanged     ();
+    void mavlinkSentMessageRateChanged  ();
 
     void isROIEnabledChanged            ();
     void roiCoordChanged                (const QGeoCoordinate& centerCoord);
@@ -948,6 +956,8 @@ private slots:
     void _vehicleParamLoaded                (bool ready);
     void _sendQGCTimeToVehicle              ();
     void _mavlinkMessageStatus              (int uasId, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent, uint64_t totalBytes);
+    void _updateUplinkByteRate              (quint64 totalBytesSent);  // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    void _updateUplinkMessageRate           (quint64 totalMessagesSent);  // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
     void _orbitTelemetryTimeout             ();
     void _updateFlightTime                  ();
     void _gotProgressUpdate                 (float progressValue);
@@ -1144,14 +1154,20 @@ private:
     uint64_t    _mavlinkReceivedCount   = 0;
     uint64_t    _mavlinkLossCount       = 0;
     float       _mavlinkLossPercent     = 0.0f;
-    float       _mavlinkMessageRate5s   = 0.0f;   ///< 5-second average message rate
-    float       _mavlinkByteRate5s      = 0.0f;   ///< 5-second average byte rate
-    
+    float       _mavlinkMessageRate1s   = 0.0f;   // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    float       _mavlinkByteRate1s      = 0.0f;   // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    uint64_t    _mavlinkSentBytesCount  = 0;     // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    float       _mavlinkSentByteRate1s  = 0.0f;  // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    float       _mavlinkSentMessageRate1s = 0.0f; // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+
     // Rate calculation members
     QElapsedTimer           _messageRateTimer;
+    QElapsedTimer           _uplinkRateTimer;
     uint64_t    _lastMessageCount         = 0;
     uint64_t    _lastByteCount            = 0;
-    static const int        _messageRateUpdateIntervalMsecs = 5000;  ///< 5 seconds for rate calculation
+    uint64_t    _lastSentByteCount        = 0;
+    uint64_t    _lastSentMessageCount     = 0;   // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    static const int        _messageRateUpdateIntervalMsecs = 1000;  // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
 
     float       _loadProgress           = 0.0f;
 
@@ -1225,9 +1241,9 @@ private:
     static const int                _mavCommandAckTimeoutMSecsHighLatency   = 120000;
 
     void _sendMavCommandWorker  (
-            bool commandInt, bool showError, 
+            bool commandInt, bool showError,
             const MavCmdAckHandlerInfo_t* ackHandlerInfo,   ///> nullptr to signale no handlers
-            int compId, MAV_CMD command, MAV_FRAME frame, 
+            int compId, MAV_CMD command, MAV_FRAME frame,
             float param1, float param2, float param3, float param4, double param5, double param6, float param7);
     void _sendMavCommandFromList(int index);
     int  _findMavCommandListEntryIndex(int targetCompId, MAV_CMD command);
@@ -1367,7 +1383,7 @@ private:
     int     requestOperatorControlRemainingMsecs() const { return _timerRequestOperatorControl.remainingTime(); }
     bool    sendControlRequestAllowed() const { return _sendControlRequestAllowed; }
     void    requestOperatorControlStartTimer(int requestTimeoutMsecs);
-    
+
     uint8_t _sysid_in_control = 0;
     uint8_t _gcsControlStatusFlags = 0;
     bool    _gcsControlStatusFlags_SystemManager = 0;

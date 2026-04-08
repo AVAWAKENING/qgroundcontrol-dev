@@ -75,6 +75,7 @@ void MAVLinkProtocol::resetMetadataForLink(LinkInterface *link)
     _totalReceiveCounter[channel] = 0;
     _totalLossCounter[channel] = 0;
     _totalByteCounter[channel] = 0;
+    _totalBytesSentCounter[channel] = 0;
     _runningLossPercent[channel] = 0.f;
 
     link->setDecodedFirstMavlinkPacket(false);
@@ -101,6 +102,24 @@ void MAVLinkProtocol::logSentBytes(const LinkInterface *link, const QByteArray &
         _stopLogging();
         _logSuspendError = true;
     }
+}
+
+// myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+void MAVLinkProtocol::_updateBytesSentCounter(LinkInterface *link, const QByteArray &data)
+{
+    if (!link->mavlinkChannelIsSet()) {
+        return;
+    }
+    
+    uint8_t mavlinkChannel = link->mavlinkChannel();
+    _totalBytesSentCounter[mavlinkChannel] += data.size();
+    
+    uint64_t totalBytesSentAllChannels = 0;
+    for (int i = 0; i < MAVLINK_COMM_NUM_BUFFERS; i++) {
+        totalBytesSentAllChannels += _totalBytesSentCounter[i];
+    }
+    
+    emit uplinkByteCountUpdated(totalBytesSentAllChannels);
 }
 
 void MAVLinkProtocol::receiveBytes(LinkInterface *link, const QByteArray &data)

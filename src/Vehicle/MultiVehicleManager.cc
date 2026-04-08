@@ -145,6 +145,10 @@ void MultiVehicleManager::_vehicleHeartbeatInfo(LinkInterface* link, int vehicle
     (void) connect(vehicle, &Vehicle::requestProtocolVersion, this, &MultiVehicleManager::_requestProtocolVersion);
     (void) connect(vehicle->vehicleLinkManager(), &VehicleLinkManager::allLinksRemoved, this, &MultiVehicleManager::_deleteVehiclePhase1);
     (void) connect(vehicle->parameterManager(), &ParameterManager::parametersReadyChanged, this, &MultiVehicleManager::_vehicleParametersReadyChanged);
+    (void) connect(vehicle, &Vehicle::mavlinkMessageRateChanged, this, &MultiVehicleManager::_updateTotalRates);
+    (void) connect(vehicle, &Vehicle::mavlinkByteRateChanged, this, &MultiVehicleManager::_updateTotalRates);
+    (void) connect(vehicle, &Vehicle::mavlinkSentMessageRateChanged, this, &MultiVehicleManager::_updateTotalRates);
+    (void) connect(vehicle, &Vehicle::mavlinkSentByteRateChanged, this, &MultiVehicleManager::_updateTotalRates);
 
     _vehicles->append(vehicle);
 
@@ -215,6 +219,7 @@ void MultiVehicleManager::_deleteVehiclePhase1(Vehicle *vehicle)
 
     _setActiveVehicleAvailable(false);
     _setParameterReadyVehicleAvailable(false);
+    _updateTotalRates();
     emit vehicleRemoved(vehicle);
     vehicle->prepareDelete();
 
@@ -417,5 +422,44 @@ void MultiVehicleManager::_setParameterReadyVehicleAvailable(bool parametersRead
     if (parametersReady != _parameterReadyVehicleAvailable) {
         _parameterReadyVehicleAvailable = parametersReady;
         parameterReadyVehicleAvailableChanged(parametersReady);
+    }
+}
+
+// myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+void MultiVehicleManager::_updateTotalRates()
+{
+    float totalMsgRate = 0.0f;
+    float totalByteRate = 0.0f;
+    float totalUplinkMsgRate = 0.0f;
+    float totalUplinkByteRate = 0.0f;
+    
+    for (int i = 0; i < _vehicles->count(); i++) {
+        Vehicle *const vehicle = qobject_cast<Vehicle*>(_vehicles->get(i));
+        if (vehicle) {
+            totalMsgRate += vehicle->mavlinkMessageRate();
+            totalByteRate += vehicle->mavlinkByteRate();
+            totalUplinkMsgRate += vehicle->mavlinkSentMessageRate();
+            totalUplinkByteRate += vehicle->mavlinkSentByteRate();
+        }
+    }
+    
+    if (totalMsgRate != _totalMessageRate) {
+        _totalMessageRate = totalMsgRate;
+        emit totalMessageRateChanged(_totalMessageRate);
+    }
+    
+    if (totalByteRate != _totalByteRate) {
+        _totalByteRate = totalByteRate;
+        emit totalByteRateChanged(_totalByteRate);
+    }
+    
+    if (totalUplinkMsgRate != _totalUplinkMessageRate) {
+        _totalUplinkMessageRate = totalUplinkMsgRate;
+        emit totalUplinkMessageRateChanged(_totalUplinkMessageRate);
+    }
+    
+    if (totalUplinkByteRate != _totalUplinkByteRate) {
+        _totalUplinkByteRate = totalUplinkByteRate;
+        emit totalUplinkByteRateChanged(_totalUplinkByteRate);
     }
 }

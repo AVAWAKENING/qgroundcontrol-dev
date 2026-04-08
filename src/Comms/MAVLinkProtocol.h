@@ -79,6 +79,8 @@ signals:
     void messageReceived(LinkInterface *link, const mavlink_message_t &message);
 
     void mavlinkMessageStatus(int sysid, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent, uint64_t totalBytes);
+    
+    void uplinkByteCountUpdated(uint64_t totalBytesSent);
 
 public slots:
     /// Receive bytes from a communication interface and constructs a MAVLink packet
@@ -89,6 +91,8 @@ public slots:
     /// It can handle multiple links in parallel, as each link has it's own buffer/parsing state machine.
     ///     @param link The interface to read from
     void logSentBytes(const LinkInterface *link, const QByteArray &data);
+    
+    void _updateBytesSentCounter(LinkInterface *link, const QByteArray &data);
 
     /// Deletes any log files which are in the temp directory
     static void deleteTempLogFiles();
@@ -123,6 +127,7 @@ private:
     uint64_t _totalReceiveCounter[MAVLINK_COMM_NUM_BUFFERS]{};  ///< The total number of successfully received messages
     uint64_t _totalLossCounter[MAVLINK_COMM_NUM_BUFFERS]{};     ///< Total messages lost during transmission.
     uint64_t _totalByteCounter[MAVLINK_COMM_NUM_BUFFERS]{};     ///< Total bytes received
+    uint64_t _totalBytesSentCounter[MAVLINK_COMM_NUM_BUFFERS]{}; ///< Total bytes sent
     float _runningLossPercent[MAVLINK_COMM_NUM_BUFFERS]{};      ///< Loss rate
 
     unsigned _currentVersion = 100;
