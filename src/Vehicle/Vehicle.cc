@@ -3716,6 +3716,36 @@ void Vehicle::_doSetHomeTerrainReceived(bool success, QList<double> heights)
     _doSetHomeCoordinate = QGeoCoordinate(); // So isValid() will no longer return true, for extra safety
 }
 
+/// [myproject/BLACK-BOX]:一键设置当前点为home点 - 回调处理
+void Vehicle::_doSetHomeToVehiclePositionAckHandler(void* resultHandlerData, int compId, const mavlink_command_ack_t& ack, MavCmdResultFailureCode_t failureCode)
+{
+    Vehicle* vehicle = static_cast<Vehicle*>(resultHandlerData);
+    bool success = (ack.result == MAV_RESULT_ACCEPTED) && (failureCode == MavCmdResultCommandResultOnly);
+    emit vehicle->setHomeResult(success);
+}
+
+/// [myproject/BLACK-BOX]:一键设置当前点为home点 - 设置home点为无人机当前位置
+void Vehicle::doSetHomeToVehiclePosition()
+{
+    if (_coordinate.isValid()) {
+        MavCmdAckHandlerInfo_t handlerInfo = {};
+        handlerInfo.resultHandler = _doSetHomeToVehiclePositionAckHandler;
+        handlerInfo.resultHandlerData = this;
+        
+        sendMavCommandWithHandler(
+            &handlerInfo,
+            defaultComponentId(),
+            MAV_CMD_DO_SET_HOME,
+            0,
+            0,
+            0,
+            static_cast<float>(qQNaN()),
+            static_cast<float>(_coordinate.latitude()),
+            static_cast<float>(_coordinate.longitude()),
+            static_cast<float>(_coordinate.altitude()));
+    }
+}
+
 void Vehicle::_updateAltAboveTerrain()
 {
     // We won't do another query if the previous query was done closer than 2 meters from current position

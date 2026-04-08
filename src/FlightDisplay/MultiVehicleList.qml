@@ -111,6 +111,13 @@ Item {
         return false
     }
 
+    // [myproject/BLACK-BOX]:一键设置当前点为home点 - 设置单个飞行器home点
+    function setVehicleHome(vehicle) {
+        if (vehicle && vehicle.coordinate && vehicle.coordinate.isValid) {
+            vehicle.doSetHomeToVehiclePosition()
+        }
+    }
+
     QGCListView {
         id:                 vehicleList
         anchors.left:       parent.left
@@ -212,6 +219,57 @@ Item {
                         id:                     control
                         settingsGroup:          factValueGrid.vehicleCardSettingsGroup
                         specificVehicleForCard: _vehicle
+                    }
+                }
+
+                // [myproject/BLACK-BOX]:一键设置当前点为home点 - 设置home按钮
+                Rectangle {
+                    id:                         homeButton
+                    anchors.horizontalCenter:   parent.horizontalCenter
+                    width:                      ScreenTools.defaultFontPixelHeight * 1.5
+                    height:                     width
+                    radius:                     ScreenTools.defaultFontPixelWidth / 4
+                    color:                      statusColor
+                    enabled:                    _vehicle && _vehicle.coordinate && _vehicle.coordinate.isValid
+                    scale:                      homeMouseArea.pressed ? 0.9 : 1.0
+
+                    property color statusColor: "white"
+
+                    Behavior on scale { NumberAnimation { duration: 50 } }
+
+                    QGCLabel {
+                        anchors.centerIn:   parent
+                        text:               "H"
+                        color:              "black"
+                        font.bold:          true
+                        font.family:        ScreenTools.fixedFontFamily
+                        font.pointSize:     ScreenTools.defaultFontPointSize
+                    }
+
+                    QGCMouseArea {
+                        id:             homeMouseArea
+                        anchors.fill:   parent
+                        enabled:        parent.enabled
+                        onClicked:      setVehicleHome(_vehicle)
+                    }
+
+                    Connections {
+                        target:                 _vehicle
+                        enabled:                _vehicle !== null
+                        function onSetHomeResult(success) {
+                            if (success) {
+                                homeButton.statusColor = qgcPal.colorGreen
+                            } else {
+                                homeButton.statusColor = "red"
+                            }
+                            statusResetTimer.start()
+                        }
+                    }
+
+                    Timer {
+                        id:         statusResetTimer
+                        interval:   500
+                        onTriggered: homeButton.statusColor = "white"
                     }
                 }
             }
