@@ -40,7 +40,7 @@ jobs:
         shell: cmd
 
     env:
-      ARTIFACT: QGroundControl-installer-dev.exe
+      ARTIFACT: QGroundControl-installer.exe
       PACKAGE: QGroundControl-installer-dev
       QT_VERSION: 6.8.3
       GST_VERSION: 1.22.12
