@@ -981,6 +981,7 @@ private:
     void _handleCommandAck              (mavlink_message_t& message);
     void _handleGpsRawInt               (mavlink_message_t& message);
     void _handleGlobalPositionInt       (mavlink_message_t& message);
+    void _handleGnssLowBandwidthPosition(mavlink_message_t& message);
     void _handleHighLatency             (mavlink_message_t& message);
     void _handleHighLatency2            (mavlink_message_t& message);
     void _handleOrbitExecutionStatus    (const mavlink_message_t& message);

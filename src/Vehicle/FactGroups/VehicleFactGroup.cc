@@ -71,6 +71,9 @@ void VehicleFactGroup::handleMessage(Vehicle *vehicle, const mavlink_message_t &
     case MAVLINK_MSG_ID_RAW_IMU:
         _handleRawImuTemp(message);
         break;
+    case MAVLINK_MSG_ID_GNSS_LOW_BANDWIDTH_POSITION:
+        _handleGnssLowBandwidthPosition(message);
+        break;
 #ifndef QGC_NO_ARDUPILOT_DIALECT
     case MAVLINK_MSG_ID_RANGEFINDER:
         _handleRangefinder(message);
@@ -148,22 +151,30 @@ void VehicleFactGroup::_handleAttitudeQuaternion(Vehicle *vehicle, const mavlink
     QQuaternion quat(attitudeQuaternion.q1, attitudeQuaternion.q2, attitudeQuaternion.q3, attitudeQuaternion.q4);
     QVector3D rates(attitudeQuaternion.rollspeed, attitudeQuaternion.pitchspeed, attitudeQuaternion.yawspeed);
     QQuaternion repr_offset(attitudeQuaternion.repr_offset_q[0], attitudeQuaternion.repr_offset_q[1], attitudeQuaternion.repr_offset_q[2], attitudeQuaternion.repr_offset_q[3]);
+    QQuaternion reprOffsetQuat = repr_offset;
 
-    // if repr_offset is valid, rotate attitude and rates
-    if (repr_offset.length() >= 0.5f) {
-        quat *= repr_offset;
-        rates = repr_offset * rates;
-    }
+    QQuaternion attitudeQuaternionFinal = quat * reprOffsetQuat;
+    attitudeQuaternionFinal.normalize();
 
-    float attRoll, attPitch, attYaw;
-    float q[] = { quat.scalar(), quat.x(), quat.y(), quat.z() };
-    mavlink_quaternion_to_euler(q, &attRoll, &attPitch, &attYaw);
+    QVector3D euler = attitudeQuaternionFinal.toEulerAngles();
 
-    _handleAttitudeWorker(attRoll, attPitch, attYaw);
+    _handleAttitudeWorker(euler.x(), euler.y(), euler.z());
 
-    rollRate()->setRawValue(qRadiansToDegrees(rates[0]));
-    pitchRate()->setRawValue(qRadiansToDegrees(rates[1]));
-    yawRate()->setRawValue(qRadiansToDegrees(rates[2]));
+    rollRate()->setRawValue(rates.x());
+    pitchRate()->setRawValue(rates.y());
+    yawRate()->setRawValue(rates.z());
+
+    _setTelemetryAvailable(true);
+}
+
+void VehicleFactGroup::_handleGnssLowBandwidthPosition(const mavlink_message_t &message)
+{
+    mavlink_gnss_low_bandwidth_position_t gnssLowBandwidth{};
+    mavlink_msg_gnss_low_bandwidth_position_decode(&message, &gnssLowBandwidth);
+
+    // Convert heading from centi-degrees to degrees (0-360)
+    double headingDegrees = gnssLowBandwidth.heading / 100.0;
+    heading()->setRawValue(headingDegrees);
 
     _setTelemetryAvailable(true);
 }

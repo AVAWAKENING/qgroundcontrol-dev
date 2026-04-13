@@ -567,6 +567,9 @@ void Vehicle::_mavlinkMessageReceived(LinkInterface* link, mavlink_message_t mes
     case MAVLINK_MSG_ID_GLOBAL_POSITION_INT:
         _handleGlobalPositionInt(message);
         break;
+    case MAVLINK_MSG_ID_GNSS_LOW_BANDWIDTH_POSITION:
+        _handleGnssLowBandwidthPosition(message);
+        break;
     case MAVLINK_MSG_ID_CAMERA_IMAGE_CAPTURED:
         _handleCameraImageCaptured(message);
         break;
@@ -772,6 +775,24 @@ void Vehicle::_handleGlobalPositionInt(mavlink_message_t& message)
 
     _globalPositionIntMessageAvailable = true;
     QGeoCoordinate newPosition(globalPositionInt.lat  / (double)1E7, globalPositionInt.lon / (double)1E7, globalPositionInt.alt  / 1000.0);
+    if (newPosition != _coordinate) {
+        _coordinate = newPosition;
+        emit coordinateChanged(_coordinate);
+    }
+}
+
+void Vehicle::_handleGnssLowBandwidthPosition(mavlink_message_t& message)
+{
+    mavlink_gnss_low_bandwidth_position_t gnssLowBandwidth;
+    mavlink_msg_gnss_low_bandwidth_position_decode(&message, &gnssLowBandwidth);
+
+    if (!_altitudeMessageAvailable) {
+        _altitudeRelativeFact.setRawValue(gnssLowBandwidth.relative_alt / 1000.0);
+        _altitudeAMSLFact.setRawValue(gnssLowBandwidth.alt / 1000.0);
+    }
+
+    _globalPositionIntMessageAvailable = true;
+    QGeoCoordinate newPosition(gnssLowBandwidth.lat / (double)1E7, gnssLowBandwidth.lon / (double)1E7, gnssLowBandwidth.alt / 1000.0);
     if (newPosition != _coordinate) {
         _coordinate = newPosition;
         emit coordinateChanged(_coordinate);
