@@ -30,6 +30,7 @@ RTCMMavlink::~RTCMMavlink()
 
 void RTCMMavlink::RTCMDataUpdate(QByteArrayView data)
 {
+    qCDebug(RTCMMavlinkLog) << "RTCMDataUpdate called, data size:" << data.size();
 #ifdef QT_DEBUG
     _calculateBandwith(data.size());
 #endif
@@ -93,7 +94,10 @@ void RTCMMavlink::_calculateBandwith(qsizetype bytes)
 
     const qint64 elapsed = _bandwidthTimer.elapsed();
     if (elapsed > 1000) {
-        qCDebug(RTCMMavlinkLog) << QStringLiteral("RTCM bandwidth: %1 kB/s").arg(((_bandwidthByteCounter / elapsed) * 1000.f) / 1024.f);
+        qCDebug(RTCMMavlinkLog) << QStringLiteral("RTCM bandwidth: %1 kB/s (bytes: %2, elapsed: %3 ms)")
+            .arg(((_bandwidthByteCounter / static_cast<float>(elapsed)) * 1000.f) / 1024.f)
+            .arg(_bandwidthByteCounter)
+            .arg(elapsed);
         (void) _bandwidthTimer.restart();
         _bandwidthByteCounter = 0;
     }

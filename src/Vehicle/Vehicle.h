@@ -213,6 +213,11 @@ public:
     Q_PROPERTY(quint64              mavlinkReceivedCount        READ mavlinkReceivedCount                                           NOTIFY mavlinkStatusChanged)
     Q_PROPERTY(quint64              mavlinkLossCount            READ mavlinkLossCount                                               NOTIFY mavlinkStatusChanged)
     Q_PROPERTY(float                mavlinkLossPercent          READ mavlinkLossPercent                                             NOTIFY mavlinkStatusChanged)
+    Q_PROPERTY(float                mavlinkMessageRate          READ mavlinkMessageRate                                             NOTIFY mavlinkMessageRateChanged)
+    Q_PROPERTY(float                mavlinkByteRate             READ mavlinkByteRate                                                NOTIFY mavlinkByteRateChanged)
+    Q_PROPERTY(quint64              mavlinkSentBytesCount       READ mavlinkSentBytesCount                                          NOTIFY mavlinkSentByteRateChanged)
+    Q_PROPERTY(float                mavlinkSentByteRate         READ mavlinkSentByteRate                                            NOTIFY mavlinkSentByteRateChanged)
+    Q_PROPERTY(float                mavlinkSentMessageRate      READ mavlinkSentMessageRate                                         NOTIFY mavlinkSentMessageRateChanged)
     Q_PROPERTY(GimbalController*    gimbalController            READ gimbalController                                               CONSTANT)
     Q_PROPERTY(bool                 hasGripper                  READ hasGripper                                                     CONSTANT)
     Q_PROPERTY(bool                 isROIEnabled                READ isROIEnabled                                                   NOTIFY isROIEnabledChanged)
@@ -808,6 +813,11 @@ public:
     quint64     mavlinkReceivedCount    () const{ return _mavlinkReceivedCount; }    /// Total number of sucessful messages received
     quint64     mavlinkLossCount        () const{ return _mavlinkLossCount; }        /// Total number of lost messages
     float       mavlinkLossPercent      () const{ return _mavlinkLossPercent; }      /// Running loss rate
+    float       mavlinkMessageRate      () const{ return _mavlinkMessageRate1s; }    /// 1-second average message rate (messages/sec)
+    float       mavlinkByteRate         () const{ return _mavlinkByteRate1s; }       /// 1-second average byte rate (bytes/sec)
+    quint64     mavlinkSentBytesCount   () const{ return _mavlinkSentBytesCount; }   // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    float       mavlinkSentByteRate     () const{ return _mavlinkSentByteRate1s; }    // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    float       mavlinkSentMessageRate  () const{ return _mavlinkSentMessageRate1s; }  // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
 
     bool        isROIEnabled            () const{ return _isROIEnabled; }
 
@@ -914,6 +924,10 @@ signals:
     void requestProtocolVersion         (unsigned version);
     void mavlinkStatusChanged           ();
     void mavlinkSigningChanged          ();
+    void mavlinkMessageRateChanged      ();
+    void mavlinkByteRateChanged         ();
+    void mavlinkSentByteRateChanged     ();
+    void mavlinkSentMessageRateChanged  ();
 
     void isROIEnabledChanged            ();
     void roiCoordChanged                (const QGeoCoordinate& centerCoord);
@@ -947,7 +961,9 @@ private slots:
     void _updateHobbsMeter                  ();
     void _vehicleParamLoaded                (bool ready);
     void _sendQGCTimeToVehicle              ();
-    void _mavlinkMessageStatus              (int uasId, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent);
+    void _mavlinkMessageStatus              (int uasId, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent, uint64_t totalBytes);
+    void _updateUplinkByteRate              (quint64 totalBytesSent);  // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    void _updateUplinkMessageRate           (quint64 totalMessagesSent);  // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
     void _orbitTelemetryTimeout             ();
     void _updateFlightTime                  ();
     void _gotProgressUpdate                 (float progressValue);
@@ -971,6 +987,7 @@ private:
     void _handleCommandAck              (mavlink_message_t& message);
     void _handleGpsRawInt               (mavlink_message_t& message);
     void _handleGlobalPositionInt       (mavlink_message_t& message);
+    void _handleGnssLowBandwidthPosition(mavlink_message_t& message);
     void _handleHighLatency             (mavlink_message_t& message);
     void _handleHighLatency2            (mavlink_message_t& message);
     void _handleOrbitExecutionStatus    (const mavlink_message_t& message);
@@ -1146,6 +1163,20 @@ private:
     uint64_t    _mavlinkReceivedCount   = 0;
     uint64_t    _mavlinkLossCount       = 0;
     float       _mavlinkLossPercent     = 0.0f;
+    float       _mavlinkMessageRate1s   = 0.0f;   // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    float       _mavlinkByteRate1s      = 0.0f;   // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    uint64_t    _mavlinkSentBytesCount  = 0;     // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    float       _mavlinkSentByteRate1s  = 0.0f;  // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    float       _mavlinkSentMessageRate1s = 0.0f; // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+
+    // Rate calculation members
+    QElapsedTimer           _messageRateTimer;
+    QElapsedTimer           _uplinkRateTimer;
+    uint64_t    _lastMessageCount         = 0;
+    uint64_t    _lastByteCount            = 0;
+    uint64_t    _lastSentByteCount        = 0;
+    uint64_t    _lastSentMessageCount     = 0;   // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
+    static const int        _messageRateUpdateIntervalMsecs = 1000;  // myfeature/DEV-V5.0.8-BLACKBOX-SAVE-BANDWIDTH:数据速率显示功能
 
     float       _loadProgress           = 0.0f;
 

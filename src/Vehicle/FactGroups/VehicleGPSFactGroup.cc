@@ -47,6 +47,9 @@ void VehicleGPSFactGroup::handleMessage(Vehicle *vehicle, const mavlink_message_
     case MAVLINK_MSG_ID_HIGH_LATENCY2:
         _handleHighLatency2(message);
         break;
+    case MAVLINK_MSG_ID_GNSS_LOW_BANDWIDTH_POSITION:
+        _handleGnssLowBandwidthPosition(message);
+        break;
     default:
         break;
     }
@@ -93,6 +96,23 @@ void VehicleGPSFactGroup::_handleHighLatency2(const mavlink_message_t &message)
     count()->setRawValue(0);
     hdop()->setRawValue((highLatency2.eph == UINT8_MAX) ? qQNaN() : (highLatency2.eph / 10.0));
     vdop()->setRawValue((highLatency2.epv == UINT8_MAX) ? qQNaN() : (highLatency2.epv / 10.0));
+
+    _setTelemetryAvailable(true);
+}
+
+void VehicleGPSFactGroup::_handleGnssLowBandwidthPosition(const mavlink_message_t &message)
+{
+    mavlink_gnss_low_bandwidth_position_t gnssLowBandwidth{};
+    mavlink_msg_gnss_low_bandwidth_position_decode(&message, &gnssLowBandwidth);
+
+    lat()->setRawValue(gnssLowBandwidth.lat * 1e-7);
+    lon()->setRawValue(gnssLowBandwidth.lon * 1e-7);
+    mgrs()->setRawValue(QGCGeo::convertGeoToMGRS(QGeoCoordinate(gnssLowBandwidth.lat * 1e-7, gnssLowBandwidth.lon * 1e-7, gnssLowBandwidth.alt / 1000.0)));
+    count()->setRawValue(gnssLowBandwidth.satellites_visible);
+    lock()->setRawValue(gnssLowBandwidth.fix_type);
+    courseOverGround()->setRawValue(gnssLowBandwidth.heading / 100.0);
+    hdop()->setRawValue(qQNaN());
+    vdop()->setRawValue(qQNaN());
 
     _setTelemetryAvailable(true);
 }

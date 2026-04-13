@@ -174,6 +174,7 @@ bool LinkManager::createConnectedLink(SharedLinkConfigurationPtr &config)
     (void) connect(link.get(), &LinkInterface::communicationError, this, &LinkManager::_communicationError);
     (void) connect(link.get(), &LinkInterface::bytesReceived, MAVLinkProtocol::instance(), &MAVLinkProtocol::receiveBytes);
     (void) connect(link.get(), &LinkInterface::bytesSent, MAVLinkProtocol::instance(), &MAVLinkProtocol::logSentBytes);
+    (void) connect(link.get(), &LinkInterface::bytesSent, MAVLinkProtocol::instance(), &MAVLinkProtocol::_updateBytesSentCounter);
     (void) connect(link.get(), &LinkInterface::disconnected, this, &LinkManager::_linkDisconnected);
 
     MAVLinkProtocol::instance()->resetMetadataForLink(link.get());

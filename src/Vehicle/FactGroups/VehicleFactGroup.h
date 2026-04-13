@@ -84,6 +84,7 @@ protected:
     void _handleVfrHud(const mavlink_message_t &message);
     void _handleRawImuTemp(const mavlink_message_t &message);
     void _handleNavControllerOutput(const mavlink_message_t &message);
+    void _handleGnssLowBandwidthPosition(const mavlink_message_t &message);
 #ifndef QGC_NO_ARDUPILOT_DIALECT
     void _handleRangefinder(const mavlink_message_t &message);
 #endif

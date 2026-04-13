@@ -35,6 +35,10 @@ class MultiVehicleManager : public QObject
     Q_PROPERTY(QmlObjectListModel   *vehicles                       READ vehicles                                                           CONSTANT)
     Q_PROPERTY(QmlObjectListModel   *selectedVehicles               READ selectedVehicles                                                   CONSTANT)
     Q_PROPERTY(Vehicle              *offlineEditingVehicle          READ offlineEditingVehicle                                              CONSTANT)
+    Q_PROPERTY(float                totalMessageRate                READ totalMessageRate                                                   NOTIFY totalMessageRateChanged)
+    Q_PROPERTY(float                totalByteRate                   READ totalByteRate                                                      NOTIFY totalByteRateChanged)
+    Q_PROPERTY(float                totalUplinkMessageRate          READ totalUplinkMessageRate                                              NOTIFY totalUplinkMessageRateChanged)
+    Q_PROPERTY(float                totalUplinkByteRate             READ totalUplinkByteRate                                                NOTIFY totalUplinkByteRateChanged)
 
 public:
     explicit MultiVehicleManager(QObject *parent = nullptr);
@@ -53,6 +57,10 @@ public:
     Vehicle *offlineEditingVehicle() const { return _offlineEditingVehicle; }
     Vehicle *activeVehicle() const { return _activeVehicle; }
     void setActiveVehicle(Vehicle *vehicle);
+    float totalMessageRate() const { return _totalMessageRate; }
+    float totalByteRate() const { return _totalByteRate; }
+    float totalUplinkMessageRate() const { return _totalUplinkMessageRate; }
+    float totalUplinkByteRate() const { return _totalUplinkByteRate; }
 
 signals:
     void vehicleAdded(Vehicle *vehicle);
@@ -60,6 +68,10 @@ signals:
     void activeVehicleAvailableChanged(bool activeVehicleAvailable);
     void parameterReadyVehicleAvailableChanged(bool parameterReadyVehicleAvailable);
     void activeVehicleChanged(Vehicle *activeVehicle);
+    void totalMessageRateChanged(float rate);
+    void totalByteRateChanged(float rate);
+    void totalUplinkMessageRateChanged(float rate);
+    void totalUplinkByteRateChanged(float rate);
 
 private slots:
     void _deleteVehiclePhase1(Vehicle *vehicle); /// This slot is connected to the Vehicle::allLinksDestroyed signal such that the Vehicle is deleted and all other right things happen when the Vehicle goes away.
@@ -69,6 +81,7 @@ private slots:
     void _sendGCSHeartbeat();
     void _vehicleHeartbeatInfo(LinkInterface *link, int vehicleId, int componentId, int vehicleFirmwareType, int vehicleType);
     void _requestProtocolVersion(unsigned version) const; /// This slot is connected to the Vehicle::requestProtocolVersion signal such that the vehicle manager tries to switch MAVLink to v2 if all vehicles support it
+    void _updateTotalRates();
 
 private:
     bool _vehicleExists(int vehicleId);
@@ -88,6 +101,10 @@ private:
     Vehicle *_activeVehicle = nullptr;              ///< Currently active vehicle from a ui perspective
     QList<int> _ignoreVehicleIds;                   ///< List of vehicle id for which we ignore further communication
     bool _initialized = false;
+    float _totalMessageRate = 0.0f;
+    float _totalByteRate = 0.0f;
+    float _totalUplinkMessageRate = 0.0f;
+    float _totalUplinkByteRate = 0.0f;
 
     static constexpr int kGCSHeartbeatRateMSecs = 1000;  ///< Heartbeat rate
 };

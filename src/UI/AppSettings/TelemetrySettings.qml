@@ -244,8 +244,61 @@ SettingsPage {
 
         LabelledLabel {
             Layout.fillWidth:   true
+            label:              qsTr("本机-下行-包速率 (msgs/s):")
+            labelText:          _activeVehicle ? _activeVehicle.mavlinkMessageRate.toFixed(1) : _notConnectedStr
+        }
+
+        LabelledLabel {
+            Layout.fillWidth:   true
+            label:              qsTr("本机-下行-字节速率 (Bytes/s):")
+            labelText:          _activeVehicle ? _activeVehicle.mavlinkByteRate.toFixed(0) : _notConnectedStr
+        }
+
+        LabelledLabel {
+            Layout.fillWidth:   true
+            label:              qsTr("本机-上行-字节速率 (Bytes/s):")
+            labelText:          _activeVehicle ? _activeVehicle.mavlinkSentByteRate.toFixed(0) : _notConnectedStr
+        }
+
+        LabelledLabel {
+            Layout.fillWidth:   true
+            label:              qsTr("本机-上行-包速率 (msgs/s):")
+            labelText:          _activeVehicle ? _activeVehicle.mavlinkSentMessageRate.toFixed(1) : _notConnectedStr
+        }
+
+        LabelledLabel {
+            Layout.fillWidth:   true
             label:              qsTr("Signing:")
             labelText:          _activeVehicle ? (_activeVehicle.mavlinkSigning ? "On" : "Off") : _notConnectedStr
+        }
+    }
+
+    SettingsGroupLayout {
+        Layout.fillWidth:   true
+        heading:            qsTr("全部链路状态")
+
+        LabelledLabel {
+            Layout.fillWidth:   true
+            label:              qsTr("全部-下行-包速率 (msgs/s):")
+            labelText:          QGroundControl.multiVehicleManager.totalMessageRate.toFixed(1)
+        }
+
+        LabelledLabel {
+            Layout.fillWidth:   true
+            label:              qsTr("全部-下行-字节速率 (Bytes/s):")
+            labelText:          QGroundControl.multiVehicleManager.totalByteRate.toFixed(0)
+        }
+
+        LabelledLabel {
+            Layout.fillWidth:   true
+            label:              qsTr("全部-上行-包速率 (msgs/s):")
+            labelText:          QGroundControl.multiVehicleManager.totalUplinkMessageRate.toFixed(1)
+        }
+
+        LabelledLabel {
+            Layout.fillWidth:   true
+            label:              qsTr("全部-上行-字节速率 (Bytes/s):")
+            labelText:          QGroundControl.multiVehicleManager.totalUplinkByteRate.toFixed(0)
         }
     }
 }

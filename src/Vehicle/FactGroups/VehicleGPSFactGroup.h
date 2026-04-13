@@ -42,6 +42,7 @@ protected:
     void _handleGpsRawInt(const mavlink_message_t &message);
     void _handleHighLatency(const mavlink_message_t &message);
     void _handleHighLatency2(const mavlink_message_t &message);
+    void _handleGnssLowBandwidthPosition(const mavlink_message_t &message);
 
     Fact _latFact = Fact(0, QStringLiteral("lat"), FactMetaData::valueTypeDouble);
     Fact _lonFact = Fact(0, QStringLiteral("lon"), FactMetaData::valueTypeDouble);

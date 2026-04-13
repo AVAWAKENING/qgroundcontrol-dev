@@ -55,7 +55,6 @@
         { "vendorID": 9900, "productID": 4388,      "boardClass": "Pixhawk",    "name": "3DR Control Zero H7 OEM Rev G" },
 
         { "vendorID": 1027, "productID": 24597,     "boardClass": "SiK Radio",  "name": "SiK Radio",            "comment": "3DR Radio" },
-        { "vendorID": 4292, "productID": 60000,     "boardClass": "SiK Radio",  "name": "SiK Radio",            "comment": "SILabs Radio" },
         { "vendorID": 12346, "productID": 4097,     "boardClass": "SiK Radio",  "name": "DroneBridge Radio",    "comment": "ESP32-based telemetry radio" },
 
         { "vendorID": 5446, "productID": 424,       "boardClass": "RTK GPS",    "name": "U-blox RTK GPS",       "comment": "U-blox RTK GPS (M8P)" },
@@ -111,6 +110,8 @@
         { "regExp": "^ARK Pi6X.x$",         "boardClass": "Pixhawk" },
         { "regExp": "^ARK BL Pi6X.x$",      "boardClass": "Pixhawk" },
         { "regExp": "^PX4 TROPIC Community","boardClass": "Pixhawk" },
+        { "regExp": "^QinHeng",            "boardClass": "RTK GPS",    "comment": "QinHeng Electronics CH340 serial converter (WTRTK-M20D)" },
+        { "regExp": "^CH340",               "boardClass": "RTK GPS",    "comment": "CH340 USB serial converter" },
         { "regExp": "^FT231X USB UART$",    "boardClass": "SiK Radio" },
         { "regExp": "USB UART$",            "boardClass": "SiK Radio",  "androidOnly": true, "comment": "Very broad fallback, too dangerous for non-android" }
     ],
