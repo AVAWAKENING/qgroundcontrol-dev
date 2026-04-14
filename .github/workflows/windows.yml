@@ -3,8 +3,7 @@ name: Windows
 on:
   push:
     branches:
-      - master
-      - 'Stable*'
+      - 'mytest/BLACK-BOX'
     tags:
       - 'v*'
     paths-ignore:
