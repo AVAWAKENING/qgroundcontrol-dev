@@ -12,6 +12,7 @@
 #include "MultiVehicleManager.h"
 #include "QGCLoggingCategory.h"
 #include "Vehicle.h"
+#include <QtCore/QList>
 
 QGC_LOGGING_CATEGORY(RTCMMavlinkLog, "qgc.gps.rtcmmavlink")
 
@@ -67,19 +68,55 @@ void RTCMMavlink::RTCMDataUpdate(QByteArrayView data)
 void RTCMMavlink::_sendMessageToVehicle(const mavlink_gps_rtcm_data_t &data)
 {
     QmlObjectListModel* const vehicles = MultiVehicleManager::instance()->vehicles();
+    if (vehicles->count() == 0) {
+        return;
+    }
+
+    // Collect unique links to avoid duplicate transmissions on broadcast links
+    // (e.g., star topology radio where one uplink transmission reaches all vehicles)
+    QList<SharedLinkInterfacePtr> uniqueLinks;
+
     for (qsizetype i = 0; i < vehicles->count(); i++) {
         Vehicle* const vehicle = qobject_cast<Vehicle*>(vehicles->get(i));
         const SharedLinkInterfacePtr sharedLink = vehicle->vehicleLinkManager()->primaryLink().lock();
+
         if (sharedLink) {
-            mavlink_message_t message;
-            (void) mavlink_msg_gps_rtcm_data_encode_chan(
-                MAVLinkProtocol::instance()->getSystemId(),
-                MAVLinkProtocol::getComponentId(),
-                sharedLink->mavlinkChannel(),
-                &message,
-                &data
-            );
-            (void) vehicle->sendMessageOnLinkThreadSafe(sharedLink.get(), message);
+            // Check if this link is already in the list (shared by multiple vehicles)
+            bool isDuplicate = false;
+            for (const auto &existingLink : uniqueLinks) {
+                if (existingLink.get() == sharedLink.get()) {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+
+            if (!isDuplicate) {
+                uniqueLinks.append(sharedLink);
+            }
+        }
+    }
+
+    // Send once per unique physical link
+    // For star topology radios: one broadcast reaches all vehicles
+    // For point-to-point links: each vehicle gets its own transmission
+    for (const auto &sharedLink : uniqueLinks) {
+        mavlink_message_t message;
+        (void) mavlink_msg_gps_rtcm_data_encode_chan(
+            MAVLinkProtocol::instance()->getSystemId(),
+            MAVLinkProtocol::getComponentId(),
+            sharedLink->mavlinkChannel(),
+            &message,
+            &data
+        );
+
+        // Find the first vehicle using this link for sending
+        for (qsizetype i = 0; i < vehicles->count(); i++) {
+            Vehicle* const vehicle = qobject_cast<Vehicle*>(vehicles->get(i));
+            const SharedLinkInterfacePtr vehicleLink = vehicle->vehicleLinkManager()->primaryLink().lock();
+            if (vehicleLink.get() == sharedLink.get()) {
+                (void) vehicle->sendMessageOnLinkThreadSafe(sharedLink.get(), message);
+                break;
+            }
         }
     }
 }
