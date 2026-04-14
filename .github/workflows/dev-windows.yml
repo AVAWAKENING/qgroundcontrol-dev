@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - myproject/BLACK-BOX
+      - mytest/BLACK-BOX
     paths-ignore:
       - 'docs/**'
   pull_request:
