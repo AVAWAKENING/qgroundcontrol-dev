@@ -250,3 +250,310 @@ src/
 - 使用 `qCDebug(VehicleLog)` 输出调试信息
 - 检查 Fact 的 raw Value 和 cookedValue
 - 验证 MAVLink 消息是否正确接收和解析
+
+## 9. UI 组件开发范式
+
+### 9.1 工具栏按钮添加
+在 FlyViewToolBar 中添加按钮的标准流程：
+- **位置**: [FlyViewToolBar.qml](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/QmlControls/FlyViewToolBar.qml)
+- **结构**: 工具栏采用水平布局，包含三个主要区域：
+  1. `viewButtonRow`: 左侧按钮组（Logo、状态指示器、断开按钮）
+  2. `toolsFlickable`: 中间可滚动的指示器区域
+  3. 右侧区域：品牌Logo或其他按钮
+
+- **添加按钮步骤**:
+  1. 在工具栏右侧添加 QGCButton 组件
+  2. 使用 anchors 定位按钮位置
+  3. 在 onClicked 事件中创建弹窗组件
+  4. 调整 toolsFlickable 的 anchors.right 以避免重叠
+
+- **示例代码**:
+  ```qml
+  QGCButton {
+      id:                     dataForwardingButton
+      anchors.rightMargin:    ScreenTools.defaultFontPixelWidth / 2
+      anchors.right:          parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      text:                   qsTr("数据转发")
+      onClicked:              dialogComponent.createObject(mainWindow).open()
+  }
+  ```
+
+### 9.2 悬浮窗口/弹窗组件开发
+创建自定义悬浮窗口的标准方法：
+
+#### 方法一：基于 Popup 组件
+- **适用场景**: 非模态、可点击外部关闭的悬浮窗口
+- **实现方式**:
+  ```qml
+  Popup {
+      id:                 popup
+      parent:             Overlay.overlay
+      modal:              false
+      focus:              true
+      closePolicy:        Popup.CloseOnEscape | Popup.CloseOnPressOutside
+      anchors.centerIn:   parent
+      
+      background: Rectangle { color: "transparent" }
+      
+      contentItem: CustomComponent {
+          oncloseClicked: popup.close()
+      }
+  }
+  ```
+
+#### 方法二：基于 QGCPopupDialog
+- **适用场景**: 模态对话框、需要确认/取消按钮
+- **特点**: 
+  - 自动管理生命周期（destroyOnClose）
+  - 支持标准按钮（Ok, Cancel, Save等）
+  - 自动居中显示
+- **参考**: [QGCPopupDialog.qml](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/QmlControls/QGCPopupDialog.qml)
+
+### 9.3 自定义UI组件开发
+开发自定义UI组件的最佳实践：
+
+#### 组件结构
+- **根元素**: 通常使用 Rectangle 作为容器
+- **布局**: 使用 ColumnLayout、RowLayout、GridLayout 组织内容
+- **样式**: 使用 QGCPalette 获取主题颜色
+- **尺寸**: 使用 ScreenTools 获取标准尺寸
+
+#### 输入控件
+- **文本输入**: QGCTextField
+  ```qml
+  QGCTextField {
+      id:                 inputField
+      Layout.fillWidth:   true
+      placeholderText:    qsTr("提示文本")
+      text:               "默认值"
+  }
+  ```
+
+- **开关**: QGCSwitch
+  ```qml
+  QGCSwitch {
+      id:         toggleSwitch
+      checked:    false
+      onCheckedChanged: {
+          // 处理状态变化
+      }
+  }
+  ```
+
+#### 信号机制
+- **定义信号**: `signal closeClicked()`
+- **发射信号**: `onClicked: root.closeClicked()`
+- **连接信号**: `oncloseClicked: popup.close()`
+
+### 9.4 QML 模块注册
+新创建的 QML 组件需要注册到模块中：
+
+- **位置**: `src/QmlControls/CMakeLists.txt`
+- **步骤**:
+  1. 在 `qt_add_qml_module` 的 `QML_FILES` 列表中添加文件名
+  2. 按字母顺序插入到合适位置
+  3. 重新构建项目
+
+- **示例**:
+  ```cmake
+  qt_add_qml_module(QGroundControlControlsModule
+      URI QGroundControl.Controls
+      VERSION 1.0
+      RESOURCE_PREFIX /qml
+      QML_FILES
+          ...
+          DataForwardingSettings.qml
+          ...
+  )
+  ```
+
+### 9.5 样式和主题
+QGroundControl 使用统一的样式系统：
+
+#### 颜色系统
+- **QGCPalette**: 提供主题相关的颜色
+  ```qml
+  QGCPalette { id: qgcPal }
+  
+  color: qgcPal.window           // 窗口背景色
+  color: qgcPal.windowShade      // 窗口阴影色
+  color: qgcPal.text             // 文本颜色
+  color: qgcPal.button           // 按钮颜色
+  ```
+
+#### 尺寸规范
+- **ScreenTools**: 提供标准尺寸
+  ```qml
+  ScreenTools.defaultFontPixelWidth      // 默认字体宽度
+  ScreenTools.defaultFontPixelHeight     // 默认字体高度
+  ScreenTools.mediumFontPointSize        // 中号字体
+  ScreenTools.smallFontPointSize         // 小号字体
+  ```
+
+#### 边距和间距
+- **标准边距**: `ScreenTools.defaultFontPixelHeight * 0.5`
+- **控件间距**: `ScreenTools.defaultFontPixelWidth`
+- **圆角半径**: `ScreenTools.defaultFontPixelWidth / 2`
+
+### 9.6 布局最佳实践
+使用 Qt Quick Layouts 进行响应式布局：
+
+#### GridLayout
+适用于表单类布局：
+```qml
+GridLayout {
+    columns:        2
+    rowSpacing:     ScreenTools.defaultFontPixelHeight * 0.25
+    columnSpacing:  ScreenTools.defaultFontPixelWidth
+    
+    QGCLabel { text: qsTr("标签:") }
+    QGCTextField {
+        Layout.fillWidth: true
+        placeholderText: qsTr("输入")
+    }
+}
+```
+
+#### ColumnLayout
+适用于垂直排列的组件：
+```qml
+ColumnLayout {
+    spacing: ScreenTools.defaultFontPixelHeight * 0.5
+    
+    RowLayout {
+        Layout.fillWidth: true
+        // 标题栏
+    }
+    
+    GridLayout {
+        // 表单内容
+    }
+}
+```
+
+### 9.7 国际化
+所有用户可见的字符串应使用 qsTr() 包裹：
+```qml
+text: qsTr("数据转发")
+placeholderText: qsTr("例如: 192.168.1.100")
+```
+
+### 9.8 数据持久化
+使用 QtCore.Settings 实现简单的数据持久化（Qt 6.5+）：
+
+#### Settings 组件
+- **导入**: `import QtCore`（Qt 6.5+ 推荐方式）
+- **旧版导入**: `import Qt.labs.settings`（已弃用，不推荐使用）
+- **特点**: 自动保存到配置文件，应用重启后自动加载
+- **存储位置**: 
+  - Linux: `~/.config/QGroundControl/QGroundControl Daily.ini`
+  - Windows: 注册表或配置文件
+  - macOS: `~/Library/Preferences/com.qgroundcontrol.QGroundControl.plist`
+
+#### 实现示例
+```qml
+import QtCore
+
+Rectangle {
+    Settings {
+        id: settings
+        property string ipAddress:      "127.0.0.1"
+        property string portNumber:     "14550"
+        property bool   forwardingEnabled: false
+    }
+    
+    QGCTextField {
+        text:           settings.ipAddress
+        onTextChanged:  settings.ipAddress = text
+    }
+}
+```
+
+#### 注意事项
+- Settings 属性会在值改变时自动保存
+- 首次运行使用默认值
+- 支持基本类型：string, bool, int, real, var 等
+- 不支持复杂对象，需要序列化
+- **重要**: Qt 6.5+ 应使用 `import QtCore`，而不是 `import Qt.labs.settings`
+
+### 9.9 可拉伸窗口实现
+实现窗口大小可调整的功能：
+
+#### 拖拽区域
+```qml
+MouseArea {
+    id: resizeMouseArea
+    anchors.right:    parent.right
+    anchors.bottom:   parent.bottom
+    width:            ScreenTools.defaultFontPixelWidth * 2
+    height:           ScreenTools.defaultFontPixelHeight * 2
+    cursorShape:      Qt.SizeFDiagCursor  // 对角线调整光标
+    
+    property real lastX: 0
+    property real lastY: 0
+    
+    onPressed: {
+        lastX = mouse.x
+        lastY = mouse.y
+    }
+    
+    onMouseXChanged: {
+        var dx = mouse.x - lastX
+        var newWidth = root.width + dx
+        if (newWidth >= minWidth) {
+            root.width = newWidth
+        }
+    }
+    
+    onMouseYChanged: {
+        var dy = mouse.y - lastY
+        var newHeight = root.height + dy
+        if (newHeight >= minHeight) {
+            root.height = newHeight
+        }
+    }
+}
+```
+
+#### 视觉指示器
+使用 Canvas 绘制调整大小的图标：
+```qml
+Canvas {
+    anchors.fill: parent
+    onPaint: {
+        var ctx = getContext("2d")
+        ctx.strokeStyle = qgcPal.text
+        ctx.lineWidth = 2
+        
+        // 绘制两条斜线
+        ctx.beginPath()
+        ctx.moveTo(width * 0.7, height * 0.3)
+        ctx.lineTo(width * 0.3, height * 0.7)
+        ctx.stroke()
+        
+        ctx.beginPath()
+        ctx.moveTo(width * 0.9, height * 0.3)
+        ctx.lineTo(width * 0.3, height * 0.9)
+        ctx.stroke()
+    }
+}
+```
+
+#### 滚动支持
+使用 QGCFlickable 包裹内容，支持窗口缩小后滚动查看：
+```qml
+QGCFlickable {
+    anchors.fill: parent
+    contentWidth: mainLayout.width
+    contentHeight: mainLayout.height
+    flickableDirection: Flickable.VerticalFlick
+    clip: true
+    
+    ColumnLayout {
+        id: mainLayout
+        width: parent.width - margins * 2
+        // 内容...
+    }
+}
+```

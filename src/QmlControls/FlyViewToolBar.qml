@@ -47,7 +47,7 @@ Rectangle {
 
     Rectangle {
         anchors.fill: viewButtonRow
-        
+
         gradient: Gradient {
             orientation: Gradient.Horizontal
             GradientStop { position: 0;                                     color: _mainStatusBGColor }
@@ -92,11 +92,81 @@ Rectangle {
         anchors.bottomMargin:   1
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom
-        anchors.right:          parent.right
+        anchors.right:          dataForwardingButton.left
         contentWidth:           toolIndicators.width
         flickableDirection:     Flickable.HorizontalFlick
 
         FlyViewToolBarIndicators { id: toolIndicators }
+    }
+
+    QGCButton {
+        id:                     dataForwardingButton
+        anchors.rightMargin:    ScreenTools.defaultFontPixelWidth / 2
+        anchors.right:          parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        text:                   qsTr("数据转发")
+        onClicked:              dataForwardingSettingsDialogComponent.createObject(mainWindow).open()
+
+        property var dataForwardingSettingsDialogComponent: Component {
+            Popup {
+                id:                 dataForwardingPopup
+                parent:             Overlay.overlay
+                modal:              false
+                focus:              true
+                closePolicy:        Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                x:                  (mainWindow.width - width) / 2
+                y:                  (mainWindow.height - height) / 2
+                width:              dataForwardingSettings.implicitWidth
+                height:             dataForwardingSettings.implicitHeight
+
+                background: Rectangle {
+                    color: "transparent"
+                }
+
+                contentItem: DataForwardingSettings {
+                    id: dataForwardingSettings
+                    popupParent: dataForwardingPopup
+                    onCloseClicked: dataForwardingPopup.close()
+                }
+
+                MouseArea {
+                    id: popupDragArea
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: ScreenTools.defaultFontPixelHeight * 2.5
+                    cursorShape: Qt.SizeAllCursor
+                    preventStealing: true
+
+                    property real lastX: 0
+                    property real lastY: 0
+
+                    onPressed: {
+                        lastX = mouseX
+                        lastY = mouseY
+                    }
+
+                    onPositionChanged: {
+                        if (pressed) {
+                            dataForwardingPopup.x += mouseX - lastX
+                            dataForwardingPopup.y += mouseY - lastY
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.topMargin: ScreenTools.defaultFontPixelHeight * 0.3
+                    width: ScreenTools.defaultFontPixelWidth * 20
+                    height: ScreenTools.defaultFontPixelHeight * 0.4
+                    color: "white"
+                    radius: height / 2
+                    opacity: 0.7
+                    z: -1
+                }
+            }
+        }
     }
 
     //-------------------------------------------------------------------------
