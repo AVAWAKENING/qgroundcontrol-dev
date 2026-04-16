@@ -66,6 +66,7 @@
 #include "ShapeFileHelper.h"
 #include "SyslinkComponentController.h"
 #include "UDPLink.h"
+#include "DataForwardingSender.h"
 #include "Vehicle.h"
 #include "VehicleComponent.h"
 #include "VideoManager.h"
@@ -308,6 +309,8 @@ void QGCApplication::init()
     (void) qmlRegisterSingletonType<ShapeFileHelper>("QGroundControl.ShapeFileHelper", 1, 0, "ShapeFileHelper", [](QQmlEngine *, QJSEngine *) { return new ShapeFileHelper(); });
 
     qmlRegisterSingletonType<QGCMAVLink>("MAVLink", 1, 0, "MAVLink", mavlinkSingletonFactory);
+
+    qmlRegisterType<DataForwardingSender>("QGroundControl.Comms", 1, 0, "DataForwardingSender");
 
     // Although this should really be in _initForNormalAppBoot putting it here allowws us to create unit tests which pop up more easily
     if(QFontDatabase::addApplicationFont(":/fonts/opensans") < 0) {

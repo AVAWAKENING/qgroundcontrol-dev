@@ -113,7 +113,7 @@ Rectangle {
                 parent:             Overlay.overlay
                 modal:              false
                 focus:              true
-                closePolicy:        Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                closePolicy:        Popup.CloseOnEscape
                 x:                  (mainWindow.width - width) / 2
                 y:                  (mainWindow.height - height) / 2
                 width:              dataForwardingSettings.implicitWidth

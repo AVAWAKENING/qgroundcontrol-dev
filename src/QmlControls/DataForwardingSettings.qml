@@ -16,6 +16,7 @@ import QGroundControl
 import QGroundControl.Controls
 import QGroundControl.Palette
 import QGroundControl.ScreenTools
+import QGroundControl.Comms
 
 Rectangle {
     id:                 root
@@ -34,6 +35,10 @@ Rectangle {
     signal closeClicked()
 
     QGCPalette { id: qgcPal }
+
+    DataForwardingSender {
+        id: dataForwardingSender
+    }
 
     Settings {
         id: settings
@@ -139,7 +144,17 @@ Rectangle {
                     checked:            settings.forwardingEnabled
                     onCheckedChanged: {
                         settings.forwardingEnabled = checked
-
+                        if (checked) {
+                            var originLat = parseFloat(settings.originLat) || 0.0
+                            var originLon = parseFloat(settings.originLon) || 0.0
+                            var originAlt = parseFloat(settings.originAlt) || 0.0
+                            var freq = parseFloat(settings.frequency) || 1.0
+                            dataForwardingSender.startForwarding(settings.ipAddress, parseInt(settings.portNumber), freq, originLat, originLon, originAlt)
+                            statusText.text = qsTr("转发中：") + settings.ipAddress + ":" + settings.portNumber + " @" + settings.frequency + "Hz"
+                        } else {
+                            dataForwardingSender.stopForwarding()
+                            statusText.text = qsTr("已停止")
+                        }
                     }
                 }
 
