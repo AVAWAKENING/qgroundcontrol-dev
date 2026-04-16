@@ -56,6 +56,7 @@ private:
     static void _handleHighLatency(Vehicle *vehicle, const mavlink_message_t &message);
     static void _handleHighLatency2(Vehicle *vehicle, const mavlink_message_t &message);
     static void _handleBatteryStatus(Vehicle *vehicle, const mavlink_message_t &message);
+    static void _handleGnssLowBandwidthPosition(Vehicle *vehicle, const mavlink_message_t &message);
     static VehicleBatteryFactGroup *_findOrAddBatteryGroupById(Vehicle *vehicle, uint8_t batteryId);
 
     static constexpr const char *_batteryFactGroupNamePrefix = "battery";

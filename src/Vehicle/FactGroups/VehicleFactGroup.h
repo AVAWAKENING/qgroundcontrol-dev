@@ -26,6 +26,7 @@ class VehicleFactGroup : public FactGroup
     Q_PROPERTY(Fact *climbRate              READ climbRate              CONSTANT)
     Q_PROPERTY(Fact *altitudeRelative       READ altitudeRelative       CONSTANT)
     Q_PROPERTY(Fact *altitudeAMSL           READ altitudeAMSL           CONSTANT)
+    Q_PROPERTY(Fact *altitudeEllipsoid      READ altitudeEllipsoid      CONSTANT)
     Q_PROPERTY(Fact *altitudeAboveTerr      READ altitudeAboveTerr      CONSTANT)
     Q_PROPERTY(Fact *altitudeTuning         READ altitudeTuning         CONSTANT)
     Q_PROPERTY(Fact *altitudeTuningSetpoint READ altitudeTuningSetpoint CONSTANT)
@@ -58,6 +59,7 @@ public:
     Fact *climbRate() { return &_climbRateFact; }
     Fact *altitudeRelative() { return &_altitudeRelativeFact; }
     Fact *altitudeAMSL() { return &_altitudeAMSLFact; }
+    Fact *altitudeEllipsoid() { return &_altitudeEllipsoidFact; }
     Fact *altitudeAboveTerr() { return &_altitudeAboveTerrFact; }
     Fact *altitudeTuning() { return &_altitudeTuningFact; }
     Fact *altitudeTuningSetpoint() { return &_altitudeTuningSetpointFact; }
@@ -101,6 +103,7 @@ protected:
     Fact _climbRateFact = Fact(0, QStringLiteral("climbRate"), FactMetaData::valueTypeDouble);
     Fact _altitudeRelativeFact = Fact(0, QStringLiteral("altitudeRelative"), FactMetaData::valueTypeDouble);
     Fact _altitudeAMSLFact = Fact(0, QStringLiteral("altitudeAMSL"), FactMetaData::valueTypeDouble);
+    Fact _altitudeEllipsoidFact = Fact(0, QStringLiteral("altitudeEllipsoid"), FactMetaData::valueTypeDouble);
     Fact _altitudeAboveTerrFact = Fact(0, QStringLiteral("altitudeAboveTerr"), FactMetaData::valueTypeDouble);
     Fact _altitudeTuningFact = Fact(0, QStringLiteral("altitudeTuning"), FactMetaData::valueTypeDouble);
     Fact _altitudeTuningSetpointFact = Fact(0, QStringLiteral("altitudeTuningSetpoint"), FactMetaData::valueTypeDouble);

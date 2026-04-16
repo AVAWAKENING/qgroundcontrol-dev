@@ -29,6 +29,7 @@ VehicleFactGroup::VehicleFactGroup(QObject *parent)
     _addFact(&_climbRateFact);
     _addFact(&_altitudeRelativeFact);
     _addFact(&_altitudeAMSLFact);
+    _addFact(&_altitudeEllipsoidFact);
     _addFact(&_altitudeAboveTerrFact);
     _addFact(&_altitudeTuningFact);
     _addFact(&_altitudeTuningSetpointFact);
@@ -172,9 +173,10 @@ void VehicleFactGroup::_handleGnssLowBandwidthPosition(const mavlink_message_t &
     mavlink_gnss_low_bandwidth_position_t gnssLowBandwidth{};
     mavlink_msg_gnss_low_bandwidth_position_decode(&message, &gnssLowBandwidth);
 
-    // Convert heading from centi-degrees to degrees (0-360)
     double headingDegrees = gnssLowBandwidth.heading / 100.0;
     heading()->setRawValue(headingDegrees);
+
+    altitudeEllipsoid()->setRawValue(gnssLowBandwidth.altitude_ellipsoid_mm / 1000.0);
 
     _setTelemetryAvailable(true);
 }

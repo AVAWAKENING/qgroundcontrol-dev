@@ -54,6 +54,9 @@ void VehicleBatteryFactGroup::handleMessage(Vehicle *vehicle, const mavlink_mess
     case MAVLINK_MSG_ID_BATTERY_STATUS:
         _handleBatteryStatus(vehicle, message);
         break;
+    case MAVLINK_MSG_ID_GNSS_LOW_BANDWIDTH_POSITION:
+        _handleGnssLowBandwidthPosition(vehicle, message);
+        break;
     default:
         break;
     }
@@ -123,11 +126,25 @@ void VehicleBatteryFactGroup::_handleBatteryStatus(Vehicle *vehicle, const mavli
     group->_setTelemetryAvailable(true);
 }
 
+void VehicleBatteryFactGroup::_handleGnssLowBandwidthPosition(Vehicle *vehicle, const mavlink_message_t &message)
+{
+    mavlink_gnss_low_bandwidth_position_t gnssLowBandwidth{};
+    mavlink_msg_gnss_low_bandwidth_position_decode(&message, &gnssLowBandwidth);
+
+    VehicleBatteryFactGroup *const group = _findOrAddBatteryGroupById(vehicle, 0);
+    group->percentRemaining()->setRawValue(
+        (gnssLowBandwidth.battery_remaining == UINT8_MAX) ? qQNaN() : gnssLowBandwidth.battery_remaining
+    );
+
+    group->_setTelemetryAvailable(true);
+}
+
 void VehicleBatteryFactGroup::handleMessageForFactGroupCreation(Vehicle *vehicle, const mavlink_message_t &message)
 {
     switch (message.msgid) {
     case MAVLINK_MSG_ID_HIGH_LATENCY:
     case MAVLINK_MSG_ID_HIGH_LATENCY2:
+    case MAVLINK_MSG_ID_GNSS_LOW_BANDWIDTH_POSITION:
         _findOrAddBatteryGroupById(vehicle, 0);
         break;
     case MAVLINK_MSG_ID_BATTERY_STATUS:
