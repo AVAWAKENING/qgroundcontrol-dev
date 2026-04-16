@@ -149,7 +149,9 @@ Rectangle {
                             var originLon = parseFloat(settings.originLon) || 0.0
                             var originAlt = parseFloat(settings.originAlt) || 0.0
                             var freq = parseFloat(settings.frequency) || 1.0
-                            dataForwardingSender.startForwarding(settings.ipAddress, parseInt(settings.portNumber), freq, originLat, originLon, originAlt)
+                            var radarId = parseInt(settings.radarId) || 0
+                            var deviceId = parseInt(settings.zdNumber) || 0
+                            dataForwardingSender.startForwarding(settings.ipAddress, parseInt(settings.portNumber), freq, originLat, originLon, originAlt, radarId, deviceId)
                             statusText.text = qsTr("转发中：") + settings.ipAddress + ":" + settings.portNumber + " @" + settings.frequency + "Hz"
                         } else {
                             dataForwardingSender.stopForwarding()

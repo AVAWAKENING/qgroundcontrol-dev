@@ -31,7 +31,7 @@ public:
 
 public slots:
     void startForwarding(const QString &ip, quint16 port, double frequencyHz,
-                         double originLat, double originLon, double originAlt);
+                         double originLat, double originLon, double originAlt, int radarId, int deviceId);
     void stopForwarding();
     void sendData(const QByteArray &data);
 
@@ -63,6 +63,8 @@ private:
     double _originLat = 0.0;
     double _originLon = 0.0;
     double _originAlt = 0.0;
+    int _radarId = 0;
+    int _deviceId = 0;
 
     QList<Vehicle*> _vehicleList;
 };
@@ -76,7 +78,7 @@ public:
     virtual ~DataForwardingSender();
 
     Q_INVOKABLE void startForwarding(const QString &ip, quint16 port, double frequencyHz,
-                                     double originLat, double originLon, double originAlt);
+                                     double originLat, double originLon, double originAlt, int radarId, int deviceId);
     Q_INVOKABLE void stopForwarding();
     Q_INVOKABLE void sendData(const QByteArray &data);
 

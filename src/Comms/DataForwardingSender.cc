@@ -12,6 +12,7 @@
 #include "Vehicle.h"
 #include "MultiVehicleManager.h"
 #include "QmlObjectListModel.h"
+#include "VehicleGPSFactGroup.h"
 
 #include <QtCore/QThread>
 #include <QtNetwork/QHostAddress>
@@ -56,7 +57,7 @@ DataForwardingWorker::~DataForwardingWorker()
 }
 
 void DataForwardingWorker::startForwarding(const QString &ip, quint16 port, double frequencyHz,
-                                           double originLat, double originLon, double originAlt)
+                                           double originLat, double originLon, double originAlt, int radarId, int deviceId)
 {
     if (_isRunning) {
         qCWarning(DataForwardingSenderLog) << "Already running";
@@ -74,10 +75,14 @@ void DataForwardingWorker::startForwarding(const QString &ip, quint16 port, doub
     _originLat = originLat;
     _originLon = originLon;
     _originAlt = originAlt;
+    _radarId = radarId;
+    _deviceId = deviceId;
 
     qCDebug(DataForwardingSenderLog) << "Starting forwarding to" << ip << ":" << port 
                                      << "at" << frequencyHz << "Hz"
-                                     << "Origin:" << originLat << originLon << originAlt;
+                                     << "Origin:" << originLat << originLon << originAlt
+                                     << "Radar ID:" << radarId
+                                     << "Device ID:" << deviceId;
 
     _updateVehicleList();
     
@@ -237,13 +242,13 @@ QByteArray DataForwardingWorker::_buildPacket()
     int16_t flag = FLAG_VALUE;
     packet.append(reinterpret_cast<char*>(&flag), 2);
     
-    int32_t time = -1;
+    int32_t time = static_cast<int32_t>(1000.0 / _frequencyHz);
     packet.append(reinterpret_cast<char*>(&time), 4);
     
     int16_t channelNum = static_cast<int16_t>(_vehicleList.size());
     packet.append(reinterpret_cast<char*>(&channelNum), 2);
     
-    int16_t deviceId = 0;
+    int16_t deviceId = static_cast<int16_t>(_deviceId);
     packet.append(reinterpret_cast<char*>(&deviceId), 2);
 
     for (Vehicle* vehicle : _vehicleList) {
@@ -254,9 +259,26 @@ QByteArray DataForwardingWorker::_buildPacket()
 
         int16_t src = 0;
         int16_t vehicleId = static_cast<int16_t>(vehicle->id());
+        
+        int gpsFixType = 0;
+        VehicleGPSFactGroup* gpsFactGroup = qobject_cast<VehicleGPSFactGroup*>(vehicle->gpsFactGroup());
+        if (gpsFactGroup) {
+            Fact* lockFact = gpsFactGroup->lock();
+            if (lockFact) {
+                gpsFixType = lockFact->rawValue().toInt();
+            }
+        }
+        
         src = (vehicleId & 0x0FFF);
-        src |= ((DATA_SOURCE_INTERNAL & 0x03) << 12);
-        src &= 0x7FFF;
+        
+        src |= ((_radarId & 0x07) << 12);
+        
+        if (gpsFixType < 3) {
+            src |= (1 << 15);
+        } else {
+            src &= ~(1 << 15);
+        }
+        
         packet.append(reinterpret_cast<char*>(&src), 2);
 
         int32_t x = _convertToEastUpSouth(coord, _originLat, _originLon, _originAlt, 'x');
@@ -320,11 +342,12 @@ DataForwardingSender::~DataForwardingSender()
 }
 
 void DataForwardingSender::startForwarding(const QString &ip, quint16 port, double frequencyHz,
-                                           double originLat, double originLon, double originAlt)
+                                           double originLat, double originLon, double originAlt, int radarId, int deviceId)
 {
     (void) QMetaObject::invokeMethod(_worker, "startForwarding", Qt::QueuedConnection,
                                      Q_ARG(QString, ip), Q_ARG(quint16, port), Q_ARG(double, frequencyHz),
-                                     Q_ARG(double, originLat), Q_ARG(double, originLon), Q_ARG(double, originAlt));
+                                     Q_ARG(double, originLat), Q_ARG(double, originLon), Q_ARG(double, originAlt),
+                                     Q_ARG(int, radarId), Q_ARG(int, deviceId));
 }
 
 void DataForwardingSender::stopForwarding()
