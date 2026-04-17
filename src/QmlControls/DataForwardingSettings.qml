@@ -49,7 +49,7 @@ Rectangle {
         property string radarId:        ""
         property string originLat:      ""
         property string originLon:      ""
-        property string originAlt:      ""
+        property string originAltEllipsoid:      ""
         property bool   forwardingEnabled: false
     }
 
@@ -147,11 +147,11 @@ Rectangle {
                         if (checked) {
                             var originLat = parseFloat(settings.originLat) || 0.0
                             var originLon = parseFloat(settings.originLon) || 0.0
-                            var originAlt = parseFloat(settings.originAlt) || 0.0
+                            var originAltEllipsoid = parseFloat(settings.originAltEllipsoid) || 0.0
                             var freq = parseFloat(settings.frequency) || 1.0
                             var radarId = parseInt(settings.radarId) || 0
                             var deviceId = parseInt(settings.zdNumber) || 0
-                            dataForwardingSender.startForwarding(settings.ipAddress, parseInt(settings.portNumber), freq, originLat, originLon, originAlt, radarId, deviceId)
+                            dataForwardingSender.startForwarding(settings.ipAddress, parseInt(settings.portNumber), freq, originLat, originLon, originAltEllipsoid, radarId, deviceId)
                             statusText.text = qsTr("转发中：") + settings.ipAddress + ":" + settings.portNumber + " @" + settings.frequency + "Hz"
                         } else {
                             dataForwardingSender.stopForwarding()
@@ -249,13 +249,13 @@ Rectangle {
                     opacity:            settings.forwardingEnabled ? 0.7 : 1.0
                 }
 
-                QGCLabel { text: qsTr("原点海拔高度:") }
+                QGCLabel { text: qsTr("原点大地高:") }
                 QGCTextField {
                     id:                 altField
                     Layout.fillWidth:   true
                     placeholderText:    qsTr("例如：50.0")
-                    text:               settings.originAlt
-                    onTextChanged:      settings.originAlt = text
+                    text:               settings.originAltEllipsoid
+                    onTextChanged:      settings.originAltEllipsoid = text
                     enabled:            !settings.forwardingEnabled
                     opacity:            settings.forwardingEnabled ? 0.7 : 1.0
                 }

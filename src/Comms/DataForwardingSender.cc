@@ -29,7 +29,7 @@ namespace {
     constexpr double WGS84_A = 6378137.0;
     constexpr double WGS84_B = 6356752.3142;
     constexpr double WGS84_E2 = (WGS84_A * WGS84_A - WGS84_B * WGS84_B) / (WGS84_A * WGS84_A);
-    
+
     constexpr int16_t FLAG_VALUE = 0x22EB;
     constexpr uint8_t DATA_SOURCE_INTERNAL = 0;
 }
@@ -57,7 +57,7 @@ DataForwardingWorker::~DataForwardingWorker()
 }
 
 void DataForwardingWorker::startForwarding(const QString &ip, quint16 port, double frequencyHz,
-                                           double originLat, double originLon, double originAlt, int radarId, int deviceId)
+                                           double originLat, double originLon, double originAltEllipsoid, int radarId, int deviceId)
 {
     if (_isRunning) {
         qCWarning(DataForwardingSenderLog) << "Already running";
@@ -74,18 +74,18 @@ void DataForwardingWorker::startForwarding(const QString &ip, quint16 port, doub
     _frequencyHz = frequencyHz;
     _originLat = originLat;
     _originLon = originLon;
-    _originAlt = originAlt;
+    _originAltEllipsoid = originAltEllipsoid;
     _radarId = radarId;
     _deviceId = deviceId;
 
-    qCDebug(DataForwardingSenderLog) << "Starting forwarding to" << ip << ":" << port 
+    qCDebug(DataForwardingSenderLog) << "Starting forwarding to" << ip << ":" << port
                                      << "at" << frequencyHz << "Hz"
-                                     << "Origin:" << originLat << originLon << originAlt
+                                     << "Origin:" << originLat << originLon << originAltEllipsoid
                                      << "Radar ID:" << radarId
                                      << "Device ID:" << deviceId;
 
     _updateVehicleList();
-    
+
     int intervalMs = static_cast<int>(1000.0 / _frequencyHz);
     if (intervalMs > 0) {
         _timer->start(intervalMs);
@@ -106,7 +106,7 @@ void DataForwardingWorker::stopForwarding()
 
     _timer->stop();
     _isRunning = false;
-    
+
     for (Vehicle* vehicle : _vehicleList) {
         disconnect(vehicle, &Vehicle::coordinateChanged, this, &DataForwardingWorker::_onVehicleCoordinateChanged);
     }
@@ -130,7 +130,7 @@ void DataForwardingWorker::sendData(const QByteArray &data)
         return;
     }
 
-    qCDebug(DataForwardingSenderLog) << "Sent" << bytesSent << "bytes to" 
+    qCDebug(DataForwardingSenderLog) << "Sent" << bytesSent << "bytes to"
                                      << _targetAddress.toString() << ":" << _targetPort;
     emit dataSent(data);
 }
@@ -186,7 +186,7 @@ void DataForwardingWorker::_onVehicleCoordinateChanged()
 }
 
 int32_t DataForwardingWorker::_convertToEastUpSouth(const QGeoCoordinate &vehicleCoord,
-                                                     double originLat, double originLon, double originAlt,
+                                                     double originLat, double originLon, double originAltEllipsoid,
                                                      char axis)
 {
     double latRad = vehicleCoord.latitude() * M_PI / 180.0;
@@ -195,7 +195,7 @@ int32_t DataForwardingWorker::_convertToEastUpSouth(const QGeoCoordinate &vehicl
 
     double originLatRad = originLat * M_PI / 180.0;
     double originLonRad = originLon * M_PI / 180.0;
-    double originAltM = originAlt;
+    double originAltEllipsoidM = originAltEllipsoid;
 
     double N = WGS84_A / qSqrt(1.0 - WGS84_E2 * qSin(latRad) * qSin(latRad));
     double X = (N + altM) * qCos(latRad) * qCos(lonRad);
@@ -203,9 +203,9 @@ int32_t DataForwardingWorker::_convertToEastUpSouth(const QGeoCoordinate &vehicl
     double Z = (N * (1.0 - WGS84_E2) + altM) * qSin(latRad);
 
     double N0 = WGS84_A / qSqrt(1.0 - WGS84_E2 * qSin(originLatRad) * qSin(originLatRad));
-    double X0 = (N0 + originAltM) * qCos(originLatRad) * qCos(originLonRad);
-    double Y0 = (N0 + originAltM) * qCos(originLatRad) * qSin(originLonRad);
-    double Z0 = (N0 * (1.0 - WGS84_E2) + originAltM) * qSin(originLatRad);
+    double X0 = (N0 + originAltEllipsoidM) * qCos(originLatRad) * qCos(originLonRad);
+    double Y0 = (N0 + originAltEllipsoidM) * qCos(originLatRad) * qSin(originLonRad);
+    double Z0 = (N0 * (1.0 - WGS84_E2) + originAltEllipsoidM) * qSin(originLatRad);
 
     double dX = X - X0;
     double dY = Y - Y0;
@@ -217,13 +217,13 @@ int32_t DataForwardingWorker::_convertToEastUpSouth(const QGeoCoordinate &vehicl
         result = -qSin(originLonRad) * dX + qCos(originLonRad) * dY;
         break;
     case 'y':
-        result = qCos(originLatRad) * qCos(originLonRad) * dX + 
-                 qCos(originLatRad) * qSin(originLonRad) * dY + 
+        result = qCos(originLatRad) * qCos(originLonRad) * dX +
+                 qCos(originLatRad) * qSin(originLonRad) * dY +
                  qSin(originLatRad) * dZ;
         break;
     case 'z':
-        result = qSin(originLatRad) * qCos(originLonRad) * dX + 
-                 qSin(originLatRad) * qSin(originLonRad) * dY - 
+        result = qSin(originLatRad) * qCos(originLonRad) * dX +
+                 qSin(originLatRad) * qSin(originLonRad) * dY -
                  qCos(originLatRad) * dZ;
         break;
     }
@@ -238,56 +238,74 @@ QByteArray DataForwardingWorker::_buildPacket()
     }
 
     QByteArray packet;
-    
+
     int16_t flag = FLAG_VALUE;
     packet.append(reinterpret_cast<char*>(&flag), 2);
-    
+
     int32_t time = static_cast<int32_t>(1000.0 / _frequencyHz);
     packet.append(reinterpret_cast<char*>(&time), 4);
-    
+
     int16_t channelNum = static_cast<int16_t>(_vehicleList.size());
     packet.append(reinterpret_cast<char*>(&channelNum), 2);
-    
+
     int16_t deviceId = static_cast<int16_t>(_deviceId);
     packet.append(reinterpret_cast<char*>(&deviceId), 2);
 
     for (Vehicle* vehicle : _vehicleList) {
-        QGeoCoordinate coord = vehicle->coordinate();
-        if (!coord.isValid()) {
+        // 获取 GPS Fact Group
+        VehicleGPSFactGroup* gpsFactGroup = qobject_cast<VehicleGPSFactGroup*>(vehicle->gpsFactGroup());
+        if (!gpsFactGroup) {
+            qCWarning(DataForwardingSenderLog) << "Vehicle" << vehicle->id() << "has no GPS fact group";
             continue;
         }
 
+        // 检查 GPS 数据是否有效
+        double lat = gpsFactGroup->lat()->rawValue().toDouble();
+        double lon = gpsFactGroup->lon()->rawValue().toDouble();
+
+        if (lat == 0.0 && lon == 0.0) {
+            qCWarning(DataForwardingSenderLog) << "Vehicle" << vehicle->id() << "has invalid GPS coordinates";
+            continue;
+        }
+
+        // 获取大地高度（椭球面高度）
+        VehicleFactGroup* vehicleFactGroup = qobject_cast<VehicleFactGroup*>(vehicle->vehicleFactGroup());
+        double alt = 0.0;
+        if (vehicleFactGroup && vehicleFactGroup->altitudeEllipsoid()) {
+            alt = vehicleFactGroup->altitudeEllipsoid()->rawValue().toDouble();
+        }
+
+        // 构建 QGeoCoordinate
+        QGeoCoordinate coord(lat, lon, alt);
+
         int16_t src = 0;
         int16_t vehicleId = static_cast<int16_t>(vehicle->id());
-        
+
         int gpsFixType = 0;
-        VehicleGPSFactGroup* gpsFactGroup = qobject_cast<VehicleGPSFactGroup*>(vehicle->gpsFactGroup());
-        if (gpsFactGroup) {
-            Fact* lockFact = gpsFactGroup->lock();
-            if (lockFact) {
-                gpsFixType = lockFact->rawValue().toInt();
-            }
+        Fact* lockFact = gpsFactGroup->lock();
+        if (lockFact) {
+            gpsFixType = lockFact->rawValue().toInt();
         }
-        
+
         src = (vehicleId & 0x0FFF);
-        
+
         src |= ((_radarId & 0x07) << 12);
-        
+
         if (gpsFixType < 3) {
             src |= (1 << 15);
         } else {
             src &= ~(1 << 15);
         }
-        
+
         packet.append(reinterpret_cast<char*>(&src), 2);
 
-        int32_t x = _convertToEastUpSouth(coord, _originLat, _originLon, _originAlt, 'x');
+        int32_t x = _convertToEastUpSouth(coord, _originLat, _originLon, _originAltEllipsoid, 'x');
         packet.append(reinterpret_cast<char*>(&x), 4);
 
-        int32_t y = _convertToEastUpSouth(coord, _originLat, _originLon, _originAlt, 'y');
+        int32_t y = _convertToEastUpSouth(coord, _originLat, _originLon, _originAltEllipsoid, 'y');
         packet.append(reinterpret_cast<char*>(&y), 4);
 
-        int32_t z = _convertToEastUpSouth(coord, _originLat, _originLon, _originAlt, 'z');
+        int32_t z = _convertToEastUpSouth(coord, _originLat, _originLon, _originAltEllipsoid, 'z');
         packet.append(reinterpret_cast<char*>(&z), 4);
 
         int32_t vx = -1;
@@ -342,11 +360,11 @@ DataForwardingSender::~DataForwardingSender()
 }
 
 void DataForwardingSender::startForwarding(const QString &ip, quint16 port, double frequencyHz,
-                                           double originLat, double originLon, double originAlt, int radarId, int deviceId)
+                                           double originLat, double originLon, double originAltEllipsoid, int radarId, int deviceId)
 {
     (void) QMetaObject::invokeMethod(_worker, "startForwarding", Qt::QueuedConnection,
                                      Q_ARG(QString, ip), Q_ARG(quint16, port), Q_ARG(double, frequencyHz),
-                                     Q_ARG(double, originLat), Q_ARG(double, originLon), Q_ARG(double, originAlt),
+                                     Q_ARG(double, originLat), Q_ARG(double, originLon), Q_ARG(double, originAltEllipsoid),
                                      Q_ARG(int, radarId), Q_ARG(int, deviceId));
 }
 

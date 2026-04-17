@@ -3826,7 +3826,7 @@ void Vehicle::doSetHomeToVehiclePosition()
         MavCmdAckHandlerInfo_t handlerInfo = {};
         handlerInfo.resultHandler = _doSetHomeToVehiclePositionAckHandler;
         handlerInfo.resultHandlerData = this;
-        
+
         sendMavCommandWithHandler(
             &handlerInfo,
             defaultComponentId(),
