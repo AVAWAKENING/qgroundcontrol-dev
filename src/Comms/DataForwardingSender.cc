@@ -327,7 +327,7 @@ QByteArray DataForwardingWorker::_buildPacket()
         }
         packet.append(reinterpret_cast<char*>(&v), 4);
 
-        int32_t rcs = -1;
+        int32_t rcs = 0;
         packet.append(reinterpret_cast<char*>(&rcs), 4);
 
         int32_t reserved = -1;
