@@ -126,6 +126,8 @@ protected:
 
 protected:
     bool _altitudeMessageAvailable = false;
+    bool _gnssLowBandwidthSpeedAvailable = false;
+    bool _gnssLowBandwidthHeadingAvailable = false;
 
 private:
     void _handleAttitudeWorker(double rollRadians, double pitchRadians, double yawRadians);

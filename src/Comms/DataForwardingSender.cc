@@ -317,7 +317,14 @@ QByteArray DataForwardingWorker::_buildPacket()
         int32_t vz = -1;
         packet.append(reinterpret_cast<char*>(&vz), 4);
 
+        // 使用 VehicleFactGroup 的 groundSpeed（单位：m/s），转换为 cm/s
         int32_t v = -1;
+        if (vehicleFactGroup && vehicleFactGroup->groundSpeed()) {
+            double groundSpeedMS = vehicleFactGroup->groundSpeed()->rawValue().toDouble();
+            if (!qIsNaN(groundSpeedMS) && groundSpeedMS >= 0.0) {
+                v = static_cast<int32_t>(groundSpeedMS * 100.0); // 转换为 cm/s
+            }
+        }
         packet.append(reinterpret_cast<char*>(&v), 4);
 
         int32_t rcs = -1;

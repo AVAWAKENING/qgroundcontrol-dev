@@ -103,7 +103,11 @@ void VehicleFactGroup::_handleAttitudeWorker(double rollRadians, double pitchRad
 
     roll()->setRawValue(rollDegrees);
     pitch()->setRawValue(pitchDegrees);
-    heading()->setRawValue(yawDegrees);
+
+    // 只有当 GNSS heading 不可用时才使用 ATTITUDE 消息的 heading
+    if (!_gnssLowBandwidthHeadingAvailable) {
+        heading()->setRawValue(yawDegrees);
+    }
 }
 
 void VehicleFactGroup::_handleAttitude(Vehicle *vehicle, const mavlink_message_t &message)
@@ -173,10 +177,20 @@ void VehicleFactGroup::_handleGnssLowBandwidthPosition(const mavlink_message_t &
     mavlink_gnss_low_bandwidth_position_t gnssLowBandwidth{};
     mavlink_msg_gnss_low_bandwidth_position_decode(&message, &gnssLowBandwidth);
 
+    // 使用 GNSS_LOW_BANDWIDTH_POSITION 中的 heading（单位：度/100）
     double headingDegrees = gnssLowBandwidth.heading / 100.0;
     heading()->setRawValue(headingDegrees);
+    _gnssLowBandwidthHeadingAvailable = true;
 
     altitudeEllipsoid()->setRawValue(gnssLowBandwidth.altitude_ellipsoid_mm / 1000.0);
+
+    // 计算地速：sqrt(vn^2 + ve^2)，单位从 cm/s 转换为 m/s
+    double groundSpeedCM = qSqrt(gnssLowBandwidth.vn * gnssLowBandwidth.vn +
+                                 gnssLowBandwidth.ve * gnssLowBandwidth.ve);
+    double groundSpeedMS = groundSpeedCM / 100.0;
+    groundSpeed()->setRawValue(groundSpeedMS);
+
+    _gnssLowBandwidthSpeedAvailable = true;
 
     _setTelemetryAvailable(true);
 }
@@ -200,7 +214,12 @@ void VehicleFactGroup::_handleVfrHud(const mavlink_message_t &message)
     mavlink_msg_vfr_hud_decode(&message, &vfrHud);
 
     airSpeed()->setRawValue(qIsNaN(vfrHud.airspeed) ? 0 : vfrHud.airspeed);
-    groundSpeed()->setRawValue(qIsNaN(vfrHud.groundspeed) ? 0 : vfrHud.groundspeed);
+
+    // 只有当 GNSS 速度不可用时才使用 VFR_HUD 的地速
+    if (!_gnssLowBandwidthSpeedAvailable) {
+        groundSpeed()->setRawValue(qIsNaN(vfrHud.groundspeed) ? 0 : vfrHud.groundspeed);
+    }
+
     climbRate()->setRawValue(qIsNaN(vfrHud.climb) ? 0 : vfrHud.climb);
     throttlePct()->setRawValue(static_cast<int16_t>(vfrHud.throttle));
     if (qIsNaN(_altitudeTuningOffset)) {
