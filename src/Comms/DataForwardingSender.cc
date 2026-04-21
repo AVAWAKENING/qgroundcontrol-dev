@@ -310,7 +310,7 @@ QByteArray DataForwardingWorker::_buildPacket()
 
         // vx = 地速 (来自 groundSpeed Fact，现在是 GNSS_LOW_BANDWIDTH_POSITION.vn)
         // 单位：m/s → 1/1024 m/s
-        int32_t vx = -1;
+        int32_t vx = 0;
         if (vehicleFactGroup && vehicleFactGroup->groundSpeed()) {
             double groundSpeedMS = vehicleFactGroup->groundSpeed()->rawValue().toDouble();
             if (!qIsNaN(groundSpeedMS) && groundSpeedMS >= 0.0) {
@@ -321,7 +321,7 @@ QByteArray DataForwardingWorker::_buildPacket()
 
         // vy = 垂直速度 (来自 climbRate Fact，现在是 GNSS_LOW_BANDWIDTH_POSITION.ve)
         // 单位：m/s → 1/1024 m/s
-        int32_t vy = -1;
+        int32_t vy = 0;
         if (vehicleFactGroup && vehicleFactGroup->climbRate()) {
             double climbRateMS = vehicleFactGroup->climbRate()->rawValue().toDouble();
             if (!qIsNaN(climbRateMS)) {
@@ -332,7 +332,7 @@ QByteArray DataForwardingWorker::_buildPacket()
 
         // vz = -NED 北向速度 (来自 velocityNorth Fact，现在是 GNSS_LOW_BANDWIDTH_POSITION.vd)
         // 单位：m/s → 1/1024 m/s，取相反数
-        int32_t vz = -1;
+        int32_t vz = 0;
         if (vehicleFactGroup && vehicleFactGroup->velocityNorth()) {
             double velocityNorthMS = vehicleFactGroup->velocityNorth()->rawValue().toDouble();
             if (!qIsNaN(velocityNorthMS)) {
@@ -341,15 +341,11 @@ QByteArray DataForwardingWorker::_buildPacket()
         }
         packet.append(reinterpret_cast<char*>(&vz), 4);
 
-        // v = sqrt(vx² + vz²)
+        // v = sqrt(vx² + vy²)
         // 单位：1/1024 m/s
-        int32_t v = -1;
-        if (vx > 0 && vz != -1) {
-            v = static_cast<int32_t>(qSqrt(vx * vx + vz * vz));
-        } else if (vx > 0) {
-            // 如果 vz 不可用，使用 vx 作为近似
-            v = vx;
-        }
+        int32_t v = 0;
+        v = static_cast<int32_t>(qSqrt(vx * vx + vy * vy));
+
         packet.append(reinterpret_cast<char*>(&v), 4);
 
         int32_t rcs = 0;

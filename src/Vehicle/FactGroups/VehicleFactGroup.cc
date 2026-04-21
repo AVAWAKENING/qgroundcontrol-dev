@@ -186,13 +186,26 @@ void VehicleFactGroup::_handleGnssLowBandwidthPosition(const mavlink_message_t &
     altitudeEllipsoid()->setRawValue(gnssLowBandwidth.altitude_ellipsoid_mm / 1000.0);
 
     // 修改 1: groundSpeed 现在使用 vn（地速/北向速度分量），单位从 cm/s 转换为 m/s
-    groundSpeed()->setRawValue(gnssLowBandwidth.vn / 100.0);
+    // int16_t 的无效值是 INT16_MAX (32767)
+    if (gnssLowBandwidth.vn != INT16_MAX) {
+        groundSpeed()->setRawValue(gnssLowBandwidth.vn / 100.0);
+    } else {
+        groundSpeed()->setRawValue(qQNaN());
+    }
 
     // 修改 2: climbRate 现在使用 ve（垂直速度/东向速度分量），单位从 cm/s 转换为 m/s
-    climbRate()->setRawValue(gnssLowBandwidth.ve / 100.0);
+    if (gnssLowBandwidth.ve != INT16_MAX) {
+        climbRate()->setRawValue(gnssLowBandwidth.ve / 100.0);
+    } else {
+        climbRate()->setRawValue(qQNaN());
+    }
 
     // 修改 3: velocityNorth 使用 vd（NED 北向速度/垂直向下速度），单位从 cm/s 转换为 m/s
-    velocityNorth()->setRawValue(gnssLowBandwidth.vd / 100.0);
+    if (gnssLowBandwidth.vd != INT16_MAX) {
+        velocityNorth()->setRawValue(gnssLowBandwidth.vd / 100.0);
+    } else {
+        velocityNorth()->setRawValue(qQNaN());
+    }
 
     _gnssLowBandwidthSpeedAvailable = true;
 
