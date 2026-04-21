@@ -308,22 +308,47 @@ QByteArray DataForwardingWorker::_buildPacket()
         int32_t z = _convertToEastUpSouth(coord, _originLat, _originLon, _originAltEllipsoid, 'z');
         packet.append(reinterpret_cast<char*>(&z), 4);
 
+        // vx = 地速 (来自 groundSpeed Fact，现在是 GNSS_LOW_BANDWIDTH_POSITION.vn)
+        // 单位：m/s → 1/1024 m/s
         int32_t vx = -1;
-        packet.append(reinterpret_cast<char*>(&vx), 4);
-
-        int32_t vy = -1;
-        packet.append(reinterpret_cast<char*>(&vy), 4);
-
-        int32_t vz = -1;
-        packet.append(reinterpret_cast<char*>(&vz), 4);
-
-        // 使用 VehicleFactGroup 的 groundSpeed（单位：m/s），转换为 cm/s
-        int32_t v = -1;
         if (vehicleFactGroup && vehicleFactGroup->groundSpeed()) {
             double groundSpeedMS = vehicleFactGroup->groundSpeed()->rawValue().toDouble();
             if (!qIsNaN(groundSpeedMS) && groundSpeedMS >= 0.0) {
-                v = static_cast<int32_t>(groundSpeedMS * 100.0); // 转换为 cm/s
+                vx = static_cast<int32_t>(groundSpeedMS * 1024.0);
             }
+        }
+        packet.append(reinterpret_cast<char*>(&vx), 4);
+
+        // vy = 垂直速度 (来自 climbRate Fact，现在是 GNSS_LOW_BANDWIDTH_POSITION.ve)
+        // 单位：m/s → 1/1024 m/s
+        int32_t vy = -1;
+        if (vehicleFactGroup && vehicleFactGroup->climbRate()) {
+            double climbRateMS = vehicleFactGroup->climbRate()->rawValue().toDouble();
+            if (!qIsNaN(climbRateMS)) {
+                vy = static_cast<int32_t>(climbRateMS * 1024.0);
+            }
+        }
+        packet.append(reinterpret_cast<char*>(&vy), 4);
+
+        // vz = -NED 北向速度 (来自 velocityNorth Fact，现在是 GNSS_LOW_BANDWIDTH_POSITION.vd)
+        // 单位：m/s → 1/1024 m/s，取相反数
+        int32_t vz = -1;
+        if (vehicleFactGroup && vehicleFactGroup->velocityNorth()) {
+            double velocityNorthMS = vehicleFactGroup->velocityNorth()->rawValue().toDouble();
+            if (!qIsNaN(velocityNorthMS)) {
+                vz = static_cast<int32_t>(-velocityNorthMS * 1024.0);
+            }
+        }
+        packet.append(reinterpret_cast<char*>(&vz), 4);
+
+        // v = sqrt(vx² + vz²)
+        // 单位：1/1024 m/s
+        int32_t v = -1;
+        if (vx > 0 && vz != -1) {
+            v = static_cast<int32_t>(qSqrt(vx * vx + vz * vz));
+        } else if (vx > 0) {
+            // 如果 vz 不可用，使用 vx 作为近似
+            v = vx;
         }
         packet.append(reinterpret_cast<char*>(&v), 4);
 

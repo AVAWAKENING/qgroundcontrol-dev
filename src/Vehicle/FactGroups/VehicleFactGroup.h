@@ -43,6 +43,7 @@ class VehicleFactGroup : public FactGroup
     Q_PROPERTY(Fact *hobbs                  READ hobbs                  CONSTANT)
     Q_PROPERTY(Fact *throttlePct            READ throttlePct            CONSTANT)
     Q_PROPERTY(Fact *imuTemp                READ imuTemp                CONSTANT)
+    Q_PROPERTY(Fact *velocityNorth          READ velocityNorth          CONSTANT)
 
 public:
     explicit VehicleFactGroup(QObject *parent = nullptr);
@@ -76,6 +77,7 @@ public:
     Fact *hobbs() { return &_hobbsFact; }
     Fact *throttlePct() { return &_throttlePctFact; }
     Fact *imuTemp() { return &_imuTempFact; }
+    Fact *velocityNorth() { return &_velocityNorthFact; }
 
     void handleMessage(Vehicle *vehicle, const mavlink_message_t &message) override;
 
@@ -121,6 +123,7 @@ protected:
     Fact _hobbsFact = Fact(0, QStringLiteral("hobbs"), FactMetaData::valueTypeString);
     Fact _throttlePctFact = Fact(0, QStringLiteral("throttlePct"), FactMetaData::valueTypeUint16);
     Fact _imuTempFact = Fact(0, QStringLiteral("imuTemp"), FactMetaData::valueTypeInt16);
+    Fact _velocityNorthFact = Fact(0, QStringLiteral("velocityNorth"), FactMetaData::valueTypeDouble);
 
     float _altitudeTuningOffset = qQNaN();
 

@@ -47,6 +47,7 @@ VehicleFactGroup::VehicleFactGroup(QObject *parent)
     _addFact(&_hobbsFact);
     _addFact(&_throttlePctFact);
     _addFact(&_imuTempFact);
+    _addFact(&_velocityNorthFact);
 
     _hobbsFact.setRawValue(QStringLiteral("0000:00:00"));
 }
@@ -184,11 +185,14 @@ void VehicleFactGroup::_handleGnssLowBandwidthPosition(const mavlink_message_t &
 
     altitudeEllipsoid()->setRawValue(gnssLowBandwidth.altitude_ellipsoid_mm / 1000.0);
 
-    // 计算地速：sqrt(vn^2 + ve^2)，单位从 cm/s 转换为 m/s
-    double groundSpeedCM = qSqrt(gnssLowBandwidth.vn * gnssLowBandwidth.vn +
-                                 gnssLowBandwidth.ve * gnssLowBandwidth.ve);
-    double groundSpeedMS = groundSpeedCM / 100.0;
-    groundSpeed()->setRawValue(groundSpeedMS);
+    // 修改 1: groundSpeed 现在使用 vn（地速/北向速度分量），单位从 cm/s 转换为 m/s
+    groundSpeed()->setRawValue(gnssLowBandwidth.vn / 100.0);
+
+    // 修改 2: climbRate 现在使用 ve（垂直速度/东向速度分量），单位从 cm/s 转换为 m/s
+    climbRate()->setRawValue(gnssLowBandwidth.ve / 100.0);
+
+    // 修改 3: velocityNorth 使用 vd（NED 北向速度/垂直向下速度），单位从 cm/s 转换为 m/s
+    velocityNorth()->setRawValue(gnssLowBandwidth.vd / 100.0);
 
     _gnssLowBandwidthSpeedAvailable = true;
 

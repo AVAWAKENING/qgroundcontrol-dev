@@ -170,6 +170,14 @@
     "shortDesc": "Imu temperature",
     "type":             "int16",
     "units":            "°C"
+},
+{
+    "name":             "velocityNorth",
+    "shortDesc": "Velocity North (NED)",
+    "longDesc": "North velocity component in NED coordinate system (from GNSS_LOW_BANDWIDTH_POSITION.vd)",
+    "type":             "double",
+    "decimalPlaces":    1,
+    "units":            "m/s"
 }
 ]
 }
