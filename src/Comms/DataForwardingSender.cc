@@ -13,6 +13,7 @@
 #include "MultiVehicleManager.h"
 #include "QmlObjectListModel.h"
 #include "VehicleGPSFactGroup.h"
+#include "QGCApplication.h"
 
 #include <QtCore/QThread>
 #include <QtNetwork/QHostAddress>
@@ -242,7 +243,7 @@ QByteArray DataForwardingWorker::_buildPacket()
     int16_t flag = FLAG_VALUE;
     packet.append(reinterpret_cast<char*>(&flag), 2);
 
-    int32_t time = static_cast<int32_t>(1000.0 / _frequencyHz);
+    int32_t time = static_cast<int32_t>(qgcApp()->msecsSinceBoot());
     packet.append(reinterpret_cast<char*>(&time), 4);
 
     int16_t channelNum = static_cast<int16_t>(_vehicleList.size());
@@ -336,7 +337,7 @@ QByteArray DataForwardingWorker::_buildPacket()
         if (vehicleFactGroup && vehicleFactGroup->velocityNorth()) {
             double velocityNorthMS = vehicleFactGroup->velocityNorth()->rawValue().toDouble();
             if (!qIsNaN(velocityNorthMS)) {
-                vz = static_cast<int32_t>(-velocityNorthMS * 1024.0);
+                vz = static_cast<int32_t>(velocityNorthMS * 1024.0);
             }
         }
         packet.append(reinterpret_cast<char*>(&vz), 4);
