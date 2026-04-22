@@ -87,6 +87,12 @@ jobs:
           build-type: ${{ matrix.BuildType }}
           cpm-modules: ${{ runner.temp }}\shadow_build_dir\cpm_modules
 
+      - name: Clear mavlink CPM cache
+        shell: bash
+        run: |
+          rm -rf ${{ runner.temp }}/shadow_build_dir/cpm_modules/mavlink
+          echo "Cleared mavlink CPM cache to force fetch latest branch commit"
+
       - name: Install Qt for Windows (x64)
         uses: jurplel/install-qt-action@v4
         with:
