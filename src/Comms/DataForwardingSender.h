@@ -34,6 +34,7 @@ public slots:
                          double originLat, double originLon, double originAltEllipsoid, int radarId, int deviceId);
     void stopForwarding();
     void sendData(const QByteArray &data);
+    void updateFrequency(double frequencyHz);
 
 signals:
     void forwardingStarted();
@@ -81,6 +82,7 @@ public:
                                      double originLat, double originLon, double originAltEllipsoid, int radarId, int deviceId);
     Q_INVOKABLE void stopForwarding();
     Q_INVOKABLE void sendData(const QByteArray &data);
+    Q_INVOKABLE void updateFrequency(double frequencyHz);
 
 signals:
     void forwardingStarted();

@@ -1283,10 +1283,14 @@ EventHandler& Vehicle::_eventHandler(uint8_t compid)
 
         QString profile = "dev"; // TODO: should be configurable
 
+        // Disable event requests to PX4 to reduce connection time and bandwidth usage
+        constexpr bool enableEventRequests = false;
+
         QSharedPointer<EventHandler> eventHandler{new EventHandler(this, profile,
                 std::bind(&Vehicle::_handleEvent, this, compid, std::placeholders::_1),
                 sendRequestEventMessageCB,
-                MAVLinkProtocol::instance()->getSystemId(), MAVLinkProtocol::getComponentId(), _id, compid)};
+                MAVLinkProtocol::instance()->getSystemId(), MAVLinkProtocol::getComponentId(), _id, compid,
+                enableEventRequests)};
         eventData = _events.insert(compid, eventHandler);
 
         // connect health and arming check updates

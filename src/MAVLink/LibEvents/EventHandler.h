@@ -26,7 +26,8 @@ public:
 
     EventHandler(QObject* parent, const QString& profile, handle_event_f handleEventCB,
             send_request_event_message_f sendRequestCB,
-            uint8_t ourSystemId, uint8_t ourComponentId, uint8_t systemId, uint8_t componentId);
+            uint8_t ourSystemId, uint8_t ourComponentId, uint8_t systemId, uint8_t componentId,
+            bool enableEventRequests = true);
     ~EventHandler();
 
 
@@ -59,4 +60,5 @@ private:
     handle_event_f _handleEventCB;
     send_request_event_message_f _sendRequestCB;
     const uint8_t _compid;
+    const bool _enableEventRequests{true}; ///< If false, do not request events from vehicle
 };

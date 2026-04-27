@@ -240,11 +240,10 @@ GPSBaseStationSupport *GPSProvider::_connectGPS()
         return nullptr;
     }
 
-    // RTK 基站已从外部配置好，不需要调用 setSurveyInSpecs 和 setBasePosition
-    // gpsDriver->setSurveyInSpecs(_rtkData.surveyInAccMeters * 10000.f, _rtkData.surveyInDurationSecs);
-    // if (_rtkData.useFixedBaseLoction) {
-    //     gpsDriver->setBasePosition(_rtkData.fixedBaseLatitude, _rtkData.fixedBaseLongitude, _rtkData.fixedBaseAltitudeMeters, _rtkData.fixedBaseAccuracyMeters * 1000.0f);
-    // }
+    gpsDriver->setSurveyInSpecs(_rtkData.surveyInAccMeters * 10000.f, _rtkData.surveyInDurationSecs);
+    if (_rtkData.useFixedBaseLoction) {
+        gpsDriver->setBasePosition(_rtkData.fixedBaseLatitude, _rtkData.fixedBaseLongitude, _rtkData.fixedBaseAltitudeMeters, _rtkData.fixedBaseAccuracyMeters * 1000.0f);
+    }
 
     _gpsConfig.output_mode = GPSHelper::OutputMode::RTCM;
 

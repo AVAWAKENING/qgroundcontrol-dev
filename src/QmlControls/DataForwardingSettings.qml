@@ -158,6 +158,10 @@ Rectangle {
                             statusText.text = qsTr("已停止")
                         }
                     }
+                    Component.onCompleted: {
+                        // 确保开关状态与设置同步
+                        checked = settings.forwardingEnabled
+                    }
                 }
 
                 QGCButton {
@@ -178,7 +182,14 @@ Rectangle {
                     Layout.fillWidth:   true
                     placeholderText:    qsTr("例如：1")
                     text:               settings.frequency
-                    onTextChanged:      settings.frequency = text
+                    onTextChanged: {
+                        settings.frequency = text
+                        // 如果转发已开启，实时更新频率
+                        if (settings.forwardingEnabled) {
+                            var freq = parseFloat(text) || 1.0
+                            dataForwardingSender.updateFrequency(freq)
+                        }
+                    }
                     enabled:            !settings.forwardingEnabled
                     opacity:            settings.forwardingEnabled ? 0.7 : 1.0
                 }

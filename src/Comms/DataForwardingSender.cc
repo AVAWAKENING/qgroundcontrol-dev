@@ -60,15 +60,17 @@ DataForwardingWorker::~DataForwardingWorker()
 void DataForwardingWorker::startForwarding(const QString &ip, quint16 port, double frequencyHz,
                                            double originLat, double originLon, double originAltEllipsoid, int radarId, int deviceId)
 {
-    if (_isRunning) {
-        qCWarning(DataForwardingSenderLog) << "Already running";
-        return;
-    }
-
     _targetAddress = QHostAddress(ip);
     if (_targetAddress.isNull()) {
         emit errorOccurred(QStringLiteral("Invalid IP address: %1").arg(ip));
         return;
+    }
+
+    bool needRestart = _isRunning;
+    
+    if (needRestart) {
+        qCDebug(DataForwardingSenderLog) << "Forwarding already running, restarting with new parameters";
+        _timer->stop();
     }
 
     _targetPort = port;
@@ -79,13 +81,15 @@ void DataForwardingWorker::startForwarding(const QString &ip, quint16 port, doub
     _radarId = radarId;
     _deviceId = deviceId;
 
-    qCDebug(DataForwardingSenderLog) << "Starting forwarding to" << ip << ":" << port
+    qCDebug(DataForwardingSenderLog) << (needRestart ? "Restarting" : "Starting") << "forwarding to" << ip << ":" << port
                                      << "at" << frequencyHz << "Hz"
                                      << "Origin:" << originLat << originLon << originAltEllipsoid
                                      << "Radar ID:" << radarId
                                      << "Device ID:" << deviceId;
 
-    _updateVehicleList();
+    if (!needRestart) {
+        _updateVehicleList();
+    }
 
     int intervalMs = static_cast<int>(1000.0 / _frequencyHz);
     if (intervalMs > 0) {
@@ -96,7 +100,9 @@ void DataForwardingWorker::startForwarding(const QString &ip, quint16 port, doub
     }
     _isRunning = true;
 
-    emit forwardingStarted();
+    if (!needRestart) {
+        emit forwardingStarted();
+    }
 }
 
 void DataForwardingWorker::stopForwarding()
@@ -105,6 +111,8 @@ void DataForwardingWorker::stopForwarding()
         return;
     }
 
+    qCDebug(DataForwardingSenderLog) << "Stopping forwarding";
+
     _timer->stop();
     _isRunning = false;
 
@@ -112,8 +120,6 @@ void DataForwardingWorker::stopForwarding()
         disconnect(vehicle, &Vehicle::coordinateChanged, this, &DataForwardingWorker::_onVehicleCoordinateChanged);
     }
     _vehicleList.clear();
-
-    qCDebug(DataForwardingSenderLog) << "Forwarding stopped";
 
     emit forwardingStopped();
 }
@@ -134,6 +140,31 @@ void DataForwardingWorker::sendData(const QByteArray &data)
     qCDebug(DataForwardingSenderLog) << "Sent" << bytesSent << "bytes to"
                                      << _targetAddress.toString() << ":" << _targetPort;
     emit dataSent(data);
+}
+
+void DataForwardingWorker::updateFrequency(double frequencyHz)
+{
+    if (!_isRunning) {
+        qCWarning(DataForwardingSenderLog) << "Cannot update frequency, forwarding not running";
+        return;
+    }
+
+    if (qFuzzyCompare(_frequencyHz, frequencyHz)) {
+        return;
+    }
+
+    _frequencyHz = frequencyHz;
+    _timer->stop();
+    
+    int intervalMs = static_cast<int>(1000.0 / _frequencyHz);
+    if (intervalMs > 0) {
+        _timer->start(intervalMs);
+    } else {
+        qCWarning(DataForwardingSenderLog) << "Frequency too high, using minimum interval";
+        _timer->start(1);
+    }
+
+    qCDebug(DataForwardingSenderLog) << "Frequency updated to" << frequencyHz << "Hz (interval:" << intervalMs << "ms)";
 }
 
 void DataForwardingWorker::_onTimeout()
@@ -405,4 +436,9 @@ void DataForwardingSender::stopForwarding()
 void DataForwardingSender::sendData(const QByteArray &data)
 {
     (void) QMetaObject::invokeMethod(_worker, "sendData", Qt::QueuedConnection, Q_ARG(QByteArray, data));
+}
+
+void DataForwardingSender::updateFrequency(double frequencyHz)
+{
+    (void) QMetaObject::invokeMethod(_worker, "updateFrequency", Qt::QueuedConnection, Q_ARG(double, frequencyHz));
 }

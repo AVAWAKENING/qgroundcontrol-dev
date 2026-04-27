@@ -251,9 +251,201 @@ src/
 - 检查 Fact 的 raw Value 和 cookedValue
 - 验证 MAVLink 消息是否正确接收和解析
 
-## 9. UI 组件开发范式
+## 9. 通信链路架构
 
-### 9.1 工具栏按钮添加
+### 9.1 核心对象定义
+
+#### LinkInterface
+**定义**: [LinkInterface.h:21](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/Comms/LinkInterface.h#L21)
+
+**作用**: 代表一个物理通信链路（串口、UDP、TCP、蓝牙等）
+
+**关键属性**:
+- `_config: SharedLinkConfigurationPtr` - 链路配置
+- `_mavlinkChannel: uint8_t` - MAVLink 通道号
+- `_vehicleReferenceCount: int` - 引用该链路的车辆数量
+
+**关键方法**:
+- `writeBytesThreadSafe()` - 线程安全地发送数据
+- `isConnected()` - 检查连接状态
+- `mavlinkChannel()` - 获取 MAVLink 通道
+
+**子类实现**:
+- `SerialLink` - 串口链路
+- `UDPLink` - UDP 链路
+- `TCPLink` - TCP 链路
+- `MockLink` - 模拟链路（测试用）
+
+#### LinkConfiguration
+**定义**: [LinkConfiguration.h:18](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/Comms/LinkConfiguration.h#L18)
+
+**作用**: 存储链路的配置信息（IP 地址、端口、串口名称等）
+
+**关键属性**:
+- `_name: QString` - 链路名称（如 "Radio Link"）
+- `_link: LinkInterface*` - 关联的链路对象
+- `_dynamic: bool` - 是否为动态链路
+- `_autoConnect: bool` - 是否自动连接
+
+#### LinkManager
+**定义**: [LinkManager.h:40](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/Comms/LinkManager.h#L40)
+
+**作用**: 单例模式，创建和管理所有 LinkInterface 对象
+
+**关键属性**:
+- `_rgLinks: QList<SharedLinkInterfacePtr>` - 所有链路对象
+- `_rgLinkConfigs: QList<SharedLinkConfigurationPtr>` - 所有链路配置
+
+**关键方法**:
+- `createConnectedLink()` - 创建并连接链路
+- `sharedLinkInterfacePointerForLink()` - 获取链路的 shared_ptr
+
+#### Vehicle
+**定义**: [Vehicle.h:90](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/Vehicle/Vehicle.h#L90)
+
+**作用**: 代表一个连接的飞行器，包含飞行器的所有状态和信息
+
+**关键属性**:
+- `_id: int` - 飞行器 ID
+- `_vehicleLinkManager: VehicleLinkManager*` - 链路管理器
+- `_firmwarePlugin: FirmwarePlugin*` - 固件插件
+
+#### VehicleLinkManager
+**定义**: [VehicleLinkManager.h:25](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/Vehicle/VehicleLinkManager.h#L25)
+
+**作用**: 每个 Vehicle 有一个，管理该车辆使用的所有链路
+
+**关键属性**:
+- `_rgLinkInfo: QList<LinkInfo_t>` - 该车辆使用的所有链路
+- `_primaryLink: WeakLinkInterfacePtr` - 主链路
+
+**关键方法**:
+- `primaryLink()` - 获取主链路
+- `mavlinkMessageReceived()` - 处理接收到的 MAVLink 消息
+
+#### MultiVehicleManager
+**定义**: [MultiVehicleManager.h:26](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/Vehicle/MultiVehicleManager.h#L26)
+
+**作用**: 单例模式，管理所有连接的 Vehicle 对象
+
+**关键属性**:
+- `_vehicles: QmlObjectListModel*` - 所有车辆列表
+- `_activeVehicle: Vehicle*` - 当前活动的车辆
+
+### 9.2 对象关系架构图
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         QGroundControl                           │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                ┌───────────────┴───────────────┐
+                │                               │
+        ┌───────▼────────┐              ┌──────▼──────┐
+        │  LinkManager   │              │MultiVehicle │
+        │   (单例)        │              │  Manager    │
+        │                │              │  (单例)      │
+        └───────┬────────┘              └──────┬──────┘
+                │                               │
+                │ 管理所有链路                    │ 管理所有车辆
+                │                               │
+        ┌───────┴────────┐              ┌──────┴──────┐
+        │                │              │             │
+   ┌────▼────┐      ┌────▼────┐    ┌───▼────┐   ┌───▼────┐
+   │UDPLink  │      │SerialLink│    │Vehicle │   │Vehicle │
+   │(链路1)  │      │(链路2)   │    │  (1)   │   │  (2)   │
+   └────┬────┘      └────┬────┘    └───┬────┘   └───┬────┘
+        │                │              │             │
+        │                │              │             │
+   ┌────▼────┐      ┌────▼────┐    ┌───▼────┐   ┌───▼────┐
+   │UDPConfig│      │SerialConf│    │Vehicle │   │Vehicle │
+   │(配置1)  │      │(配置2)   │    │LinkMgr │   │LinkMgr │
+   │"Radio"  │      │"USB"     │    └───┬────┘   └───┬────┘
+   └─────────┘      └──────────┘        │             │
+                                          │             │
+                                    ┌─────┴─────┐  ┌───┴─────┐
+                                    │ primaryLink│  │primaryLn│
+                                    │  (weak_ptr)│  │(weak_ptr)│
+                                    └─────┬─────┘  └───┬─────┘
+                                          │             │
+                                    ┌─────┴─────────────┴─────┐
+                                    │                         │
+                                    │    共享同一个 LinkInterface │
+                                    │                         │
+                                    └─────────────────────────┘
+                                              │
+                                        ┌─────▼─────┐
+                                        │ UDPLink   │
+                                        │(0x7f1234) │
+                                        │"Radio"    │
+                                        └───────────┘
+```
+
+### 9.3 链路共享机制（星型拓扑）
+
+在星型拓扑网络中，多个 Vehicle 共享同一个物理链路：
+
+```
+物理链路：一个 UDP 链路（如 192.168.1.100:14550）
+         ↓
+LinkManager 创建一个 LinkInterface 对象
+         ↓
+    ┌────┴────┬─────────┐
+    │         │         │
+Vehicle1  Vehicle2  Vehicle3
+    │         │         │
+    └────┬────┴─────────┘
+         │
+所有 Vehicle 的 primaryLink 都指向同一个 LinkInterface 对象
+```
+
+**代码证据**: [VehicleLinkManager.cc:191](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/Vehicle/VehicleLinkManager.cc#L191)
+```cpp
+SharedLinkInterfacePtr sharedLink = LinkManager::instance()->sharedLinkInterfacePointerForLink(link);
+```
+
+### 9.4 数据流向
+
+**接收数据**:
+```
+物理链路 → LinkInterface → MAVLinkProtocol → Vehicle → VehicleLinkManager
+```
+
+**发送数据**:
+```
+Vehicle → VehicleLinkManager → primaryLink → LinkInterface → 物理链路
+```
+
+### 9.5 链路引用计数
+
+`LinkInterface` 有一个 `_vehicleReferenceCount`，记录有多少个 Vehicle 在使用该链路：
+
+```cpp
+void addVehicleReference() { ++_vehicleReferenceCount; }
+void removeVehicleReference();
+```
+
+### 9.6 设计要点
+
+1. **链路共享**: 多个 Vehicle 可以共享同一个 LinkInterface 对象（星型拓扑）
+2. **引用计数**: LinkInterface 使用引用计数管理生命周期
+3. **主链路概念**: 每个 Vehicle 有一个 primaryLink，用于主要通信
+4. **线程安全**: 使用 `writeBytesThreadSafe()` 进行线程安全的数据发送
+
+### 9.7 常见问题
+
+#### RTCM 数据重复发送问题
+在星型拓扑网络中，如果多个 Vehicle 共享同一个 LinkInterface，RTCM 数据应该只发送一次。
+
+**解决方案**:
+- 使用 `QSet<LinkInterface*>` 去重
+- 或使用链路名称去重（如果 LinkInterface 对象不同）
+
+**参考**: [RTCMMavlink.cc](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/GPS/RTCMMavlink.cc)
+
+## 10. UI 组件开发范式
+
+### 10.1 工具栏按钮添加
 在 FlyViewToolBar 中添加按钮的标准流程：
 - **位置**: [FlyViewToolBar.qml](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/QmlControls/FlyViewToolBar.qml)
 - **结构**: 工具栏采用水平布局，包含三个主要区域：
@@ -279,7 +471,7 @@ src/
   }
   ```
 
-### 9.2 悬浮窗口/弹窗组件开发
+### 10.2 悬浮窗口/弹窗组件开发
 创建自定义悬浮窗口的标准方法：
 
 #### 方法一：基于 Popup 组件
@@ -310,7 +502,7 @@ src/
   - 自动居中显示
 - **参考**: [QGCPopupDialog.qml](file:///home/hz-rd-01-sfq01/01Projects/001QGC/qgroundcontrol-dev/src/QmlControls/QGCPopupDialog.qml)
 
-### 9.3 自定义UI组件开发
+### 10.3 自定义UI组件开发
 开发自定义UI组件的最佳实践：
 
 #### 组件结构
@@ -346,7 +538,7 @@ src/
 - **发射信号**: `onClicked: root.closeClicked()`
 - **连接信号**: `oncloseClicked: popup.close()`
 
-### 9.4 QML 模块注册
+### 10.4 QML 模块注册
 新创建的 QML 组件需要注册到模块中：
 
 - **位置**: `src/QmlControls/CMakeLists.txt`
@@ -368,7 +560,7 @@ src/
   )
   ```
 
-### 9.5 样式和主题
+### 10.5 样式和主题
 QGroundControl 使用统一的样式系统：
 
 #### 颜色系统
@@ -396,7 +588,7 @@ QGroundControl 使用统一的样式系统：
 - **控件间距**: `ScreenTools.defaultFontPixelWidth`
 - **圆角半径**: `ScreenTools.defaultFontPixelWidth / 2`
 
-### 9.6 布局最佳实践
+### 10.6 布局最佳实践
 使用 Qt Quick Layouts 进行响应式布局：
 
 #### GridLayout
@@ -432,14 +624,14 @@ ColumnLayout {
 }
 ```
 
-### 9.7 国际化
+### 10.7 国际化
 所有用户可见的字符串应使用 qsTr() 包裹：
 ```qml
 text: qsTr("数据转发")
 placeholderText: qsTr("例如: 192.168.1.100")
 ```
 
-### 9.8 数据持久化
+### 10.8 数据持久化
 使用 QtCore.Settings 实现简单的数据持久化（Qt 6.5+）：
 
 #### Settings 组件
@@ -477,7 +669,7 @@ Rectangle {
 - 不支持复杂对象，需要序列化
 - **重要**: Qt 6.5+ 应使用 `import QtCore`，而不是 `import Qt.labs.settings`
 
-### 9.9 可拉伸窗口实现
+### 10.9 可拉伸窗口实现
 实现窗口大小可调整的功能：
 
 #### 拖拽区域

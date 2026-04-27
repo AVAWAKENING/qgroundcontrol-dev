@@ -16,11 +16,13 @@ Q_DECLARE_METATYPE(QSharedPointer<events::parser::ParsedEvent>);
 
 EventHandler::EventHandler(QObject* parent, const QString& profile, handle_event_f handleEventCB,
             send_request_event_message_f sendRequestCB,
-            uint8_t ourSystemId, uint8_t ourComponentId, uint8_t systemId, uint8_t componentId)
+            uint8_t ourSystemId, uint8_t ourComponentId, uint8_t systemId, uint8_t componentId,
+            bool enableEventRequests)
     : QObject(parent), _timer(parent),
     _handleEventCB(handleEventCB),
-    _sendRequestCB(sendRequestCB),
-    _compid(componentId)
+    _sendRequestCB(enableEventRequests ? sendRequestCB : send_request_event_message_f{}),
+    _compid(componentId),
+    _enableEventRequests(enableEventRequests)
 {
     auto error_cb = [componentId, this](int num_events_lost) {
         _healthAndArmingChecks.reset();
@@ -47,8 +49,13 @@ EventHandler::EventHandler(QObject* parent, const QString& profile, handle_event
     _parser.formatters().escape = [](const std::string& str) {
         return QString::fromStdString(str).toHtmlEscaped().toStdString(); };
 
-    events::ReceiveProtocol::Callbacks callbacks{error_cb, _sendRequestCB,
-        std::bind(&EventHandler::gotEvent, this, std::placeholders::_1), timeout_cb};
+    // Only register event request callback if enabled
+    events::ReceiveProtocol::Callbacks callbacks = {
+        error_cb,                                    // error callback
+        enableEventRequests ? _sendRequestCB : nullptr,  // request event callback
+        std::bind(&EventHandler::gotEvent, this, std::placeholders::_1),  // event callback
+        timeout_cb                                   // timeout callback
+    };
     _protocol = new events::ReceiveProtocol(callbacks, ourSystemId, ourComponentId, systemId, componentId);
 
     connect(&_timer, &QTimer::timeout, this, [this]() { _protocol->timerEvent(); });
