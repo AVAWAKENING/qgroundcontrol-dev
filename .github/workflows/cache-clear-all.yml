@@ -1,0 +1,90 @@
+name: Clear All Caches
+
+on:
+  workflow_dispatch:
+    description: 'Completely clear all GitHub Actions caches'
+
+permissions:
+  actions: write
+
+jobs:
+  clear-all:
+    name: Clear All Caches
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Fetch list of cache keys
+        id: fetch-caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          echo "Fetching list of cache keys..."
+
+          cacheKeys=$(gh cache list --limit 100 --json id,key,createdAt,sizeInBytes,ref --jq '.[].id')
+
+          if [[ -z "$cacheKeys" ]]; then
+            echo "No caches found in repository"
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          count=$(echo "$cacheKeys" | wc -l)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Found $count caches"
+
+          echo "## Cache Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Found $count caches to delete:**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          gh cache list --limit 100 --json key,sizeInBytes,ref,createdAt --jq '
+            ["| Key | Size (bytes) | Branch | Created At |",
+             "|-----|--------------|--------|------------|"] +
+            (. | map("| \(.key[0:40] // "") | \(.sizeInBytes) | \(.ref) | \(.createdAt)[0:19] |") | .[])
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete all caches
+        if: steps.fetch-caches.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          echo "Deleting caches..."
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Deletion Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          cacheKeys=$(gh cache list --limit 100 --json id --jq '.[].id')
+
+          deleted=0
+          failed=0
+
+          for cacheId in $cacheKeys; do
+            if gh cache delete "$cacheId"; then
+              ((deleted++))
+              echo "✓ Deleted cache ID: $cacheId"
+            else
+              ((failed++))
+              echo "✗ Failed to delete cache ID: $cacheId"
+            fi
+          done
+
+          {
+            echo "**Deletion Complete**"
+            echo ""
+            echo "- Successfully deleted: $deleted"
+            echo "- Failed: $failed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ $failed -gt 0 ]]; then
+            echo ""
+            echo "::warning::$failed cache(s) failed to delete"
+            exit 1
+          fi
+
+      - name: Success message
+        if: steps.fetch-caches.outputs.count == '0'
+        run: |
+          echo "No caches were present in the repository." >> "$GITHUB_STEP_SUMMARY"
