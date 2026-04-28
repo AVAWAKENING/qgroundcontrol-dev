@@ -28,6 +28,7 @@ Item {
     property var    selectedVehicles:     QGroundControl.multiVehicleManager.selectedVehicles
 
     implicitHeight: vehicleList.contentHeight
+    implicitWidth:  vehicleList.contentWidth * 1.5
 
     function armAvailable() {
         for (var i = 0; i < selectedVehicles.count; i++) {
@@ -188,29 +189,114 @@ Item {
                         Layout.alignment:     Qt.AlignHCenter
                     }
 
-                    ColumnLayout {
-                        spacing:              _margin
-                        Layout.rightMargin:   compassWidget.width / 4
-                        Layout.alignment:     Qt.AlignCenter
+                    // [myproject/BLACK-BOX]:一键设置当前点为home点 - 设置home按钮
+                    Rectangle {
+                        id:                         homeButton
+                        width:                      ScreenTools.defaultFontPixelHeight * 1.5
+                        height:                     width
+                        radius:                     ScreenTools.defaultFontPixelWidth / 4
+                        color:                      statusColor
+                        enabled:                    _vehicle && _vehicle.coordinate && _vehicle.coordinate.isValid
+                        scale:                      homeMouseArea.pressed ? 0.9 : 1.0
 
-                        FlightModeMenu {
-                            Layout.alignment:     Qt.AlignHCenter
-                            font.pointSize:       ScreenTools.largeFontPointSize
-                            color:                qgcPal.text
-                            currentVehicle:       _vehicle
-                        }
+                        property color statusColor: "white"
+
+                        Behavior on scale { NumberAnimation { duration: 50 } }
 
                         QGCLabel {
-                            Layout.alignment:     Qt.AlignHCenter
-                            text:                 _vehicle && _vehicle.armed ? qsTr("Armed") : qsTr("Disarmed")
-                            color:                qgcPal.text
+                            anchors.centerIn:   parent
+                            text:               "H"
+                            color:              "black"
+                            font.bold:          true
+                            font.family:        ScreenTools.fixedFontFamily
+                            font.pointSize:     ScreenTools.defaultFontPointSize
+                        }
+
+                        QGCMouseArea {
+                            id:             homeMouseArea
+                            anchors.fill:   parent
+                            enabled:        parent.enabled
+                            onClicked:      setVehicleHome(_vehicle)
+                        }
+
+                        Connections {
+                            target:                 _vehicle
+                            enabled:                _vehicle !== null
+                            function onSetHomeResult(success) {
+                                if (success) {
+                                    homeButton.statusColor = qgcPal.colorGreen
+                                } else {
+                                    homeButton.statusColor = "red"
+                                }
+                                statusResetTimer.start()
+                            }
+                        }
+
+                        Timer {
+                            id:         statusResetTimer
+                            interval:   500
+                            onTriggered: homeButton.statusColor = "white"
+                        }
+                    }
+
+                    QGCLabel {
+                        text: " | "
+                        font.pointSize:       ScreenTools.largeFontPointSize
+                        color:                qgcPal.text
+                        Layout.alignment:     Qt.AlignHCenter
+                    }
+
+                    // [myproject/BLACK-BOX]:日志开关
+                    Rectangle {
+                        id:                         logButton
+                        width:                      ScreenTools.defaultFontPixelHeight * 1.5
+                        height:                     width
+                        radius:                     ScreenTools.defaultFontPixelWidth / 4
+                        color:                      logSwitch.checked ? qgcPal.colorGreen : "white"
+                        scale:                      logMouseArea.pressed ? 0.9 : 1.0
+
+                        property bool logEnabled: false
+
+                        Behavior on scale { NumberAnimation { duration: 50 } }
+
+                        QGCLabel {
+                            anchors.centerIn:   parent
+                            text:               "Log"
+                            color:              logSwitch.checked ? "white" : "black"
+                            font.bold:          true
+                            font.family:        ScreenTools.fixedFontFamily
+                            font.pointSize:     ScreenTools.defaultFontPointSize * 0.8
+                        }
+
+                        QGCMouseArea {
+                            id:             logMouseArea
+                            anchors.fill:   parent
+                            enabled:        parent.enabled
+                            onClicked: {
+                                logSwitch.checked = !logSwitch.checked
+                                // 发送命令到 vehicle
+                                if (_vehicle) {
+                                    if (logSwitch.checked) {
+                                        _vehicle.sendShellCommand("logger start -f")
+                                    } else {
+                                        _vehicle.sendShellCommand("logger stop")
+                                    }
+                                }
+                            }
+                        }
+
+                        QGCSwitch {
+                            id:                 logSwitch
+                            anchors.fill:       parent
+                            visible:            false
+                            checked:            false
                         }
                     }
                 }
 
                 QGCFlickable {
                     anchors.horizontalCenter:   parent.horizontalCenter
-                    width:          Math.min(contentWidth, vehicleList.width)
+                    width:          vehicleList.width
                     height:         control.height
                     contentWidth:   control.width
                     contentHeight:  control.height
@@ -219,57 +305,6 @@ Item {
                         id:                     control
                         settingsGroup:          factValueGrid.vehicleCardSettingsGroup
                         specificVehicleForCard: _vehicle
-                    }
-                }
-
-                // [myproject/BLACK-BOX]:一键设置当前点为home点 - 设置home按钮
-                Rectangle {
-                    id:                         homeButton
-                    anchors.horizontalCenter:   parent.horizontalCenter
-                    width:                      ScreenTools.defaultFontPixelHeight * 1.5
-                    height:                     width
-                    radius:                     ScreenTools.defaultFontPixelWidth / 4
-                    color:                      statusColor
-                    enabled:                    _vehicle && _vehicle.coordinate && _vehicle.coordinate.isValid
-                    scale:                      homeMouseArea.pressed ? 0.9 : 1.0
-
-                    property color statusColor: "white"
-
-                    Behavior on scale { NumberAnimation { duration: 50 } }
-
-                    QGCLabel {
-                        anchors.centerIn:   parent
-                        text:               "H"
-                        color:              "black"
-                        font.bold:          true
-                        font.family:        ScreenTools.fixedFontFamily
-                        font.pointSize:     ScreenTools.defaultFontPointSize
-                    }
-
-                    QGCMouseArea {
-                        id:             homeMouseArea
-                        anchors.fill:   parent
-                        enabled:        parent.enabled
-                        onClicked:      setVehicleHome(_vehicle)
-                    }
-
-                    Connections {
-                        target:                 _vehicle
-                        enabled:                _vehicle !== null
-                        function onSetHomeResult(success) {
-                            if (success) {
-                                homeButton.statusColor = qgcPal.colorGreen
-                            } else {
-                                homeButton.statusColor = "red"
-                            }
-                            statusResetTimer.start()
-                        }
-                    }
-
-                    Timer {
-                        id:         statusResetTimer
-                        interval:   500
-                        onTriggered: homeButton.statusColor = "white"
                     }
                 }
             }

@@ -159,7 +159,7 @@ Item {
     property bool showOrbit:                _guidedActionsEnabled && _vehicleFlying && __orbitSupported && !_missionActive && _activeVehicle.homePosition.isValid && !isNaN(_activeVehicle.homePosition.altitude)
     property bool showROI:                  _guidedActionsEnabled && _vehicleFlying && __roiSupported
     property bool showLandAbort:            _guidedActionsEnabled && _vehicleFlying && _fixedWingOnApproach
-    property bool showGotoLocation:         _guidedActionsEnabled && _vehicleFlying
+    property bool showGotoLocation:         _guidedActionsEnabled
     property bool showSetHome:              _guidedActionsEnabled
     property bool showGripper:              _initialConnectComplete ? _activeVehicle.hasGripper : false
     property bool showSetEstimatorOrigin:   _activeVehicle && !(_activeVehicle.sensorsPresentBits & Vehicle.SysStatusSensorGPS)

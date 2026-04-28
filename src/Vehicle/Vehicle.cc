@@ -23,6 +23,7 @@
 #include "Joystick.h"
 #include "JoystickManager.h"
 #include "LinkManager.h"
+#include "MAVLinkConsoleController.h"
 #include "MAVLinkLogManager.h"
 #include "MAVLinkProtocol.h"
 #include "MissionCommandTree.h"
@@ -3284,6 +3285,47 @@ void Vehicle::startMavlinkLog()
 void Vehicle::stopMavlinkLog()
 {
     sendMavCommand(_defaultComponentId, MAV_CMD_LOGGING_STOP, false /* showError */);
+}
+
+void Vehicle::sendShellCommand(const QString& command)
+{
+    SharedLinkInterfacePtr sharedLink = vehicleLinkManager()->primaryLink().lock();
+    if (!sharedLink) {
+        return;
+    }
+
+    // Send command with newline
+    QByteArray output = (command + "\n").toUtf8();
+
+    // Send maximum sized chunks until the complete buffer is transmitted
+    while (output.size()) {
+        QByteArray chunk(output.left(MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN));
+        const int dataSize = chunk.size();
+
+        // Ensure the buffer is large enough, as the MAVLink parser expects MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN bytes
+        (void) chunk.append(MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN - chunk.size(), '\0');
+
+        const uint8_t flags = SERIAL_CONTROL_FLAG_EXCLUSIVE | SERIAL_CONTROL_FLAG_RESPOND | SERIAL_CONTROL_FLAG_MULTI;
+
+        mavlink_message_t msg;
+        (void) mavlink_msg_serial_control_pack_chan(
+            MAVLinkProtocol::instance()->getSystemId(),
+            MAVLinkProtocol::getComponentId(),
+            sharedLink->mavlinkChannel(),
+            &msg,
+            SERIAL_CONTROL_DEV_SHELL,
+            flags,
+            0,
+            0,
+            dataSize,
+            reinterpret_cast<uint8_t*>(chunk.data()),
+            id(),
+            defaultComponentId()
+        );
+
+        (void) sendMessageOnLinkThreadSafe(sharedLink.get(), msg);
+        (void) output.remove(0, chunk.size());
+    }
 }
 
 void Vehicle::_ackMavlinkLogData(uint16_t sequence)

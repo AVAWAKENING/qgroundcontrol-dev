@@ -524,6 +524,10 @@ public:
     void startMavlinkLog();
     void stopMavlinkLog();
 
+    /// Send shell command to vehicle using MAVLink SERIAL_CONTROL mechanism
+    ///     @param command Command string to send
+    Q_INVOKABLE void sendShellCommand(const QString& command);
+
     /// Requests the specified data stream from the vehicle
     ///     @param stream Stream which is being requested
     ///     @param rate Rate at which to send stream in Hz
