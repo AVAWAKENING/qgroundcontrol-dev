@@ -28,7 +28,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_
 CPMAddPackage(
     NAME px4-gpsdrivers
     GITHUB_REPOSITORY AVAWAKENING/PX4-GPSDrivers
-    GIT_TAG feature/wtrtk-nmea-base-station
+    GIT_TAG 0b290d791a08c9fb0abe2a20bcdc064c0e6b07b0
     SOURCE_SUBDIR src
 )
 
