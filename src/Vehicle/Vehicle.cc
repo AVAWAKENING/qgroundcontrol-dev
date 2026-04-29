@@ -283,6 +283,8 @@ void Vehicle::_commonInit()
     connect(_missionManager, &MissionManager::sendComplete,             _trajectoryPoints, &TrajectoryPoints::clear);
     connect(_missionManager, &MissionManager::newMissionItemsAvailable, _trajectoryPoints, &TrajectoryPoints::clear);
 
+    _trajectoryPoints->start();
+
     _standardModes                  = new StandardModes                 (this, this);
     _componentInformationManager    = new ComponentInformationManager   (this, this);
     _initialConnectStateMachine     = new InitialConnectStateMachine    (this, this);
@@ -1144,15 +1146,11 @@ void Vehicle::_updateArmed(bool armed)
     if (_armed != armed) {
         _armed = armed;
         emit armedChanged(_armed);
-        // We are transitioning to the armed state, begin tracking trajectory points for the map
         if (_armed) {
-            _trajectoryPoints->start();
             _flightTimerStart();
             _clearCameraTriggerPoints();
-            // Reset battery warning
             _lowestBatteryChargeStateAnnouncedMap.clear();
         } else {
-            _trajectoryPoints->stop();
             _flightTimerStop();
             // Also handle Video Streaming
             if(SettingsManager::instance()->videoSettings()->disableWhenDisarmed()->rawValue().toBool()) {
