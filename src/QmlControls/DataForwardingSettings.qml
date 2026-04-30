@@ -36,10 +36,6 @@ Rectangle {
 
     QGCPalette { id: qgcPal }
 
-    DataForwardingSender {
-        id: dataForwardingSender
-    }
-
     Settings {
         id: settings
         property string frequency:       "10"
@@ -151,10 +147,10 @@ Rectangle {
                             var freq = parseFloat(settings.frequency) || 1.0
                             var radarId = parseInt(settings.radarId) || 0
                             var deviceId = parseInt(settings.zdNumber) || 0
-                            dataForwardingSender.startForwarding(settings.ipAddress, parseInt(settings.portNumber), freq, originLat, originLon, originAltEllipsoid, radarId, deviceId)
+                            DataForwardingSender.startForwarding(settings.ipAddress, parseInt(settings.portNumber), freq, originLat, originLon, originAltEllipsoid, radarId, deviceId)
                             statusText.text = qsTr("转发中：") + settings.ipAddress + ":" + settings.portNumber + " @" + settings.frequency + "Hz"
                         } else {
-                            dataForwardingSender.stopForwarding()
+                            DataForwardingSender.stopForwarding()
                             statusText.text = qsTr("已停止")
                         }
                     }
@@ -187,7 +183,7 @@ Rectangle {
                         // 如果转发已开启，实时更新频率
                         if (settings.forwardingEnabled) {
                             var freq = parseFloat(text) || 1.0
-                            dataForwardingSender.updateFrequency(freq)
+                            DataForwardingSender.updateFrequency(freq)
                         }
                     }
                     enabled:            !settings.forwardingEnabled

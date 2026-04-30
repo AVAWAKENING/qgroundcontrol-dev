@@ -310,7 +310,10 @@ void QGCApplication::init()
 
     qmlRegisterSingletonType<QGCMAVLink>("MAVLink", 1, 0, "MAVLink", mavlinkSingletonFactory);
 
-    qmlRegisterType<DataForwardingSender>("QGroundControl.Comms", 1, 0, "DataForwardingSender");
+    qmlRegisterSingletonType<DataForwardingSender>("QGroundControl.Comms", 1, 0, "DataForwardingSender",
+        [](QQmlEngine *, QJSEngine *) -> QObject* {
+            return DataForwardingSender::instance();
+        });
 
     // Although this should really be in _initForNormalAppBoot putting it here allowws us to create unit tests which pop up more easily
     if(QFontDatabase::addApplicationFont(":/fonts/opensans") < 0) {

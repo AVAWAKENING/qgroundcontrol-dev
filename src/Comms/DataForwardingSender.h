@@ -12,6 +12,7 @@
 #include <QtCore/QByteArray>
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QObject>
+#include <QtCore/QPointer>
 #include <QtCore/QTimer>
 #include <QtNetwork/QHostAddress>
 #include <QtNetwork/QUdpSocket>
@@ -47,6 +48,7 @@ private slots:
     void _onTimeout();
     void _updateVehicleList();
     void _onVehicleCoordinateChanged();
+    void _onVehicleRemoved(Vehicle *vehicle);
 
 private:
     QByteArray _buildPacket();
@@ -67,7 +69,7 @@ private:
     int _radarId = 0;
     int _deviceId = 0;
 
-    QList<Vehicle*> _vehicleList;
+    QList<QPointer<Vehicle>> _vehicleList;
 };
 
 class DataForwardingSender : public QObject
@@ -75,9 +77,8 @@ class DataForwardingSender : public QObject
     Q_OBJECT
 
 public:
-    explicit DataForwardingSender(QObject *parent = nullptr);
-    virtual ~DataForwardingSender();
-
+    static DataForwardingSender* instance();
+    
     Q_INVOKABLE void startForwarding(const QString &ip, quint16 port, double frequencyHz,
                                      double originLat, double originLon, double originAltEllipsoid, int radarId, int deviceId);
     Q_INVOKABLE void stopForwarding();
@@ -91,6 +92,10 @@ signals:
     void dataSent(const QByteArray &data);
 
 private:
+    explicit DataForwardingSender(QObject *parent = nullptr);
+    virtual ~DataForwardingSender();
+    
+    static DataForwardingSender* _instance;
     DataForwardingWorker *_worker = nullptr;
     QThread *_workerThread = nullptr;
 };

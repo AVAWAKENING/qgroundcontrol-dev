@@ -749,3 +749,166 @@ QGCFlickable {
     }
 }
 ```
+
+## 11. 后台服务与单例模式
+
+### 11.1 问题场景
+
+当 UI 组件需要管理后台服务（如数据转发、网络连接等）时，常见的问题是：
+
+**问题示例**：
+- 用户打开转发窗口 → 创建转发实例 A → 开启转发
+- 用户关闭窗口 → 窗口销毁，但转发实例 A 可能仍在运行
+- 用户再次打开窗口 → 创建新的转发实例 B
+- 用户点击关闭转发 → 只关闭了实例 B，实例 A 仍在后台运行
+
+**根本原因**：
+- 每次打开窗口都创建新的后台服务实例
+- 窗口关闭时，后台服务没有正确停止
+- 多个实例之间没有协调机制
+
+### 11.2 单例模式解决方案
+
+对于需要全局唯一、跨窗口共享的后台服务，应使用单例模式：
+
+#### C++ 单例实现
+
+**头文件** (`DataForwardingSender.h`):
+```cpp
+class DataForwardingSender : public QObject
+{
+    Q_OBJECT
+
+public:
+    static DataForwardingSender* instance();
+    
+    Q_INVOKABLE void startForwarding(...);
+    Q_INVOKABLE void stopForwarding();
+
+signals:
+    void forwardingStarted();
+    void forwardingStopped();
+
+private:
+    explicit DataForwardingSender(QObject *parent = nullptr);
+    virtual ~DataForwardingSender();
+    
+    static DataForwardingSender* _instance;
+    DataForwardingWorker *_worker = nullptr;
+    QThread *_workerThread = nullptr;
+};
+```
+
+**实现文件** (`DataForwardingSender.cc`):
+```cpp
+DataForwardingSender* DataForwardingSender::_instance = nullptr;
+
+DataForwardingSender* DataForwardingSender::instance()
+{
+    if (!_instance) {
+        _instance = new DataForwardingSender();
+    }
+    return _instance;
+}
+
+DataForwardingSender::DataForwardingSender(QObject *parent)
+    : QObject(parent)
+    , _worker(new DataForwardingWorker())
+    , _workerThread(new QThread(this))
+{
+    _worker->moveToThread(_workerThread);
+    _workerThread->start();
+}
+```
+
+#### QML 注册为单例
+
+在 `QGCApplication.cc` 中注册：
+```cpp
+qmlRegisterSingletonType<DataForwardingSender>(
+    "QGroundControl.Comms", 1, 0, "DataForwardingSender",
+    [](QQmlEngine *, QJSEngine *) -> QObject* {
+        return DataForwardingSender::instance();
+    });
+```
+
+#### QML 中使用单例
+
+在 QML 中直接使用类名访问单例：
+```qml
+import QGroundControl.Comms
+
+// 错误做法：创建实例
+// DataForwardingSender {
+//     id: sender
+// }
+
+// 正确做法：直接使用单例
+QGCSwitch {
+    onCheckedChanged: {
+        if (checked) {
+            DataForwardingSender.startForwarding(...)
+        } else {
+            DataForwardingSender.stopForwarding()
+        }
+    }
+}
+```
+
+### 11.3 单例模式的优势
+
+1. **全局唯一实例**：无论打开多少个窗口，都使用同一个后台服务实例
+2. **状态一致性**：所有窗口看到的服务状态是一致的
+3. **资源管理**：避免创建多个线程、socket 等资源
+4. **生命周期清晰**：服务在应用启动时创建，应用退出时销毁
+
+### 11.4 适用场景
+
+**适合使用单例模式的场景**：
+- 后台数据转发服务
+- 网络连接管理
+- 设备管理
+- 全局配置管理
+- 日志系统
+
+**不适合使用单例模式的场景**：
+- 每个窗口需要独立实例的组件
+- 需要多实例的服务（如多个独立的数据源）
+
+### 11.5 线程安全注意事项
+
+单例模式在多线程环境下的注意事项：
+
+1. **懒汉式单例需要加锁**：
+```cpp
+DataForwardingSender* DataForwardingSender::instance()
+{
+    static QMutex mutex;
+    QMutexLocker locker(&mutex);
+    if (!_instance) {
+        _instance = new DataForwardingSender();
+    }
+    return _instance;
+}
+```
+
+2. **或者使用 Qt 的线程安全静态变量**（C++11+）：
+```cpp
+DataForwardingSender* DataForwardingSender::instance()
+{
+    static DataForwardingSender instance;
+    return &instance;
+}
+```
+
+3. **工作线程与 UI 线程通信**：
+   - 使用信号槽机制（Qt::QueuedConnection）
+   - 使用 QMetaObject::invokeMethod
+
+### 11.6 设计要点总结
+
+1. **识别后台服务**：判断是否需要全局唯一实例
+2. **使用单例模式**：确保全局只有一个服务实例
+3. **正确注册到 QML**：使用 qmlRegisterSingletonType
+4. **QML 中直接使用**：不创建实例，直接通过类名访问
+5. **注意线程安全**：确保多线程环境下的正确性

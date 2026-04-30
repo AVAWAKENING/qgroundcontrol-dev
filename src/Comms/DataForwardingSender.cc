@@ -50,6 +50,12 @@ DataForwardingWorker::DataForwardingWorker(QObject *parent)
         Q_UNUSED(socketError)
         emit errorOccurred(_socket->errorString());
     });
+
+    MultiVehicleManager* multiVehicleManager = MultiVehicleManager::instance();
+    if (multiVehicleManager) {
+        (void) connect(multiVehicleManager, &MultiVehicleManager::vehicleRemoved,
+                       this, &DataForwardingWorker::_onVehicleRemoved, Qt::QueuedConnection);
+    }
 }
 
 DataForwardingWorker::~DataForwardingWorker()
@@ -116,8 +122,10 @@ void DataForwardingWorker::stopForwarding()
     _timer->stop();
     _isRunning = false;
 
-    for (Vehicle* vehicle : _vehicleList) {
-        disconnect(vehicle, &Vehicle::coordinateChanged, this, &DataForwardingWorker::_onVehicleCoordinateChanged);
+    for (const QPointer<Vehicle>& vehiclePtr : _vehicleList) {
+        if (vehiclePtr) {
+            disconnect(vehiclePtr.data(), &Vehicle::coordinateChanged, this, &DataForwardingWorker::_onVehicleCoordinateChanged);
+        }
     }
     _vehicleList.clear();
 
@@ -181,8 +189,10 @@ void DataForwardingWorker::_onTimeout()
 
 void DataForwardingWorker::_updateVehicleList()
 {
-    for (Vehicle* vehicle : _vehicleList) {
-        disconnect(vehicle, &Vehicle::coordinateChanged, this, &DataForwardingWorker::_onVehicleCoordinateChanged);
+    for (const QPointer<Vehicle>& vehiclePtr : _vehicleList) {
+        if (vehiclePtr) {
+            disconnect(vehiclePtr.data(), &Vehicle::coordinateChanged, this, &DataForwardingWorker::_onVehicleCoordinateChanged);
+        }
     }
     _vehicleList.clear();
 
@@ -200,13 +210,14 @@ void DataForwardingWorker::_updateVehicleList()
     for (int i = 0; i < vehicles->count(); i++) {
         Vehicle* vehicle = qobject_cast<Vehicle*>(vehicles->get(i));
         if (vehicle && vehicle->coordinate().isValid()) {
-            _vehicleList.append(vehicle);
+            _vehicleList.append(QPointer<Vehicle>(vehicle));
             connect(vehicle, &Vehicle::coordinateChanged, this, &DataForwardingWorker::_onVehicleCoordinateChanged,
                     Qt::QueuedConnection);
         }
     }
 
-    std::sort(_vehicleList.begin(), _vehicleList.end(), [](Vehicle* a, Vehicle* b) {
+    std::sort(_vehicleList.begin(), _vehicleList.end(), [](const QPointer<Vehicle>& a, const QPointer<Vehicle>& b) {
+        if (!a || !b) return false;
         return a->id() < b->id();
     });
 
@@ -215,6 +226,24 @@ void DataForwardingWorker::_updateVehicleList()
 
 void DataForwardingWorker::_onVehicleCoordinateChanged()
 {
+}
+
+void DataForwardingWorker::_onVehicleRemoved(Vehicle *vehicle)
+{
+    if (!vehicle) {
+        return;
+    }
+
+    qCDebug(DataForwardingSenderLog) << "Vehicle removed, cleaning up:" << vehicle->id();
+
+    for (int i = _vehicleList.size() - 1; i >= 0; i--) {
+        if (_vehicleList[i].data() == vehicle) {
+            disconnect(vehicle, &Vehicle::coordinateChanged, this, &DataForwardingWorker::_onVehicleCoordinateChanged);
+            _vehicleList.removeAt(i);
+            qCDebug(DataForwardingSenderLog) << "Vehicle removed from forwarding list";
+            break;
+        }
+    }
 }
 
 int32_t DataForwardingWorker::_convertToEastUpSouth(const QGeoCoordinate &vehicleCoord,
@@ -265,6 +294,10 @@ int32_t DataForwardingWorker::_convertToEastUpSouth(const QGeoCoordinate &vehicl
 
 QByteArray DataForwardingWorker::_buildPacket()
 {
+    _vehicleList.erase(std::remove_if(_vehicleList.begin(), _vehicleList.end(),
+        [](const QPointer<Vehicle>& ptr) { return ptr.isNull(); }),
+        _vehicleList.end());
+
     if (_vehicleList.isEmpty()) {
         return QByteArray();
     }
@@ -283,15 +316,18 @@ QByteArray DataForwardingWorker::_buildPacket()
     int16_t deviceId = static_cast<int16_t>(_deviceId);
     packet.append(reinterpret_cast<char*>(&deviceId), 2);
 
-    for (Vehicle* vehicle : _vehicleList) {
-        // 获取 GPS Fact Group
+    for (const QPointer<Vehicle>& vehiclePtr : _vehicleList) {
+        if (!vehiclePtr) {
+            continue;
+        }
+        Vehicle* vehicle = vehiclePtr.data();
+
         VehicleGPSFactGroup* gpsFactGroup = qobject_cast<VehicleGPSFactGroup*>(vehicle->gpsFactGroup());
         if (!gpsFactGroup) {
             qCWarning(DataForwardingSenderLog) << "Vehicle" << vehicle->id() << "has no GPS fact group";
             continue;
         }
 
-        // 检查 GPS 数据是否有效
         double lat = gpsFactGroup->lat()->rawValue().toDouble();
         double lon = gpsFactGroup->lon()->rawValue().toDouble();
 
@@ -300,14 +336,12 @@ QByteArray DataForwardingWorker::_buildPacket()
             continue;
         }
 
-        // 获取大地高度（椭球面高度）
         VehicleFactGroup* vehicleFactGroup = qobject_cast<VehicleFactGroup*>(vehicle->vehicleFactGroup());
         double alt = 0.0;
         if (vehicleFactGroup && vehicleFactGroup->altitudeEllipsoid()) {
             alt = vehicleFactGroup->altitudeEllipsoid()->rawValue().toDouble();
         }
 
-        // 构建 QGeoCoordinate
         QGeoCoordinate coord(lat, lon, alt);
 
         int16_t src = 0;
@@ -340,8 +374,6 @@ QByteArray DataForwardingWorker::_buildPacket()
         int32_t z = _convertToEastUpSouth(coord, _originLat, _originLon, _originAltEllipsoid, 'z');
         packet.append(reinterpret_cast<char*>(&z), 4);
 
-        // vx = 地速 (来自 groundSpeed Fact，现在是 GNSS_LOW_BANDWIDTH_POSITION.vn)
-        // 单位：m/s → 1/1024 m/s
         int32_t vx = 0;
         if (vehicleFactGroup && vehicleFactGroup->groundSpeed()) {
             double groundSpeedMS = vehicleFactGroup->groundSpeed()->rawValue().toDouble();
@@ -351,8 +383,6 @@ QByteArray DataForwardingWorker::_buildPacket()
         }
         packet.append(reinterpret_cast<char*>(&vx), 4);
 
-        // vy = 垂直速度 (来自 climbRate Fact，现在是 GNSS_LOW_BANDWIDTH_POSITION.ve)
-        // 单位：m/s → 1/1024 m/s
         int32_t vy = 0;
         if (vehicleFactGroup && vehicleFactGroup->climbRate()) {
             double climbRateMS = vehicleFactGroup->climbRate()->rawValue().toDouble();
@@ -362,8 +392,6 @@ QByteArray DataForwardingWorker::_buildPacket()
         }
         packet.append(reinterpret_cast<char*>(&vy), 4);
 
-        // vz = -NED 北向速度 (来自 velocityNorth Fact，现在是 GNSS_LOW_BANDWIDTH_POSITION.vd)
-        // 单位：m/s → 1/1024 m/s，取相反数
         int32_t vz = 0;
         if (vehicleFactGroup && vehicleFactGroup->velocityNorth()) {
             double velocityNorthMS = vehicleFactGroup->velocityNorth()->rawValue().toDouble();
@@ -373,8 +401,6 @@ QByteArray DataForwardingWorker::_buildPacket()
         }
         packet.append(reinterpret_cast<char*>(&vz), 4);
 
-        // v = sqrt(vx² + vy²)
-        // 单位：1/1024 m/s
         int32_t v = 0;
         v = static_cast<int32_t>(qSqrt(vx * vx + vy * vy));
 
@@ -388,6 +414,16 @@ QByteArray DataForwardingWorker::_buildPacket()
     }
 
     return packet;
+}
+
+DataForwardingSender* DataForwardingSender::_instance = nullptr;
+
+DataForwardingSender* DataForwardingSender::instance()
+{
+    if (!_instance) {
+        _instance = new DataForwardingSender();
+    }
+    return _instance;
 }
 
 DataForwardingSender::DataForwardingSender(QObject *parent)
