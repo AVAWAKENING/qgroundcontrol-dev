@@ -37,6 +37,7 @@ MapQuickItem {
     property bool   _adsbVehicle:   vehicle ? false : true
     property var    _map:           map
     property bool   _multiVehicle:  QGroundControl.multiVehicleManager.vehicles.count > 1
+    property bool   _communicationLost: vehicle ? vehicle.vehicleLinkManager.communicationLost : false
 
     sourceItem: Item {
         id:         vehicleItem
@@ -56,10 +57,10 @@ MapQuickItem {
             blurMax: 32
             blurMultiplier: .1
         }
-            
+
         Repeater {
-            model: vehicle ? vehicle.gimbalController.gimbals : [] 
-            
+            model: vehicle ? vehicle.gimbalController.gimbals : []
+
             Item {
                 id:                           canvasItem
                 anchors.centerIn:             vehicleItem
@@ -121,7 +122,9 @@ MapQuickItem {
 
         Image {
             id:                 vehicleIcon
-            source:             _adsbVehicle ? (alert ? "/qmlimages/AlertAircraft.svg" : "/qmlimages/AwarenessAircraft.svg") : vehicle.vehicleImageOpaque
+            source:             _adsbVehicle ?
+                                    (alert ? "/qmlimages/AlertAircraft.svg" : "/qmlimages/AwarenessAircraft.svg") :
+                                    (_communicationLost ? "/qmlimages/AwarenessAircraft.svg" : "/qmlimages/vehicleArrowOpaque.svg")
             mipmap:             true
             width:              _root.size
             sourceSize.width:   _root.size
