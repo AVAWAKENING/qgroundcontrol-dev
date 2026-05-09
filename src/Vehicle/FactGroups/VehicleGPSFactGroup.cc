@@ -47,6 +47,12 @@ void VehicleGPSFactGroup::handleMessage(Vehicle *vehicle, const mavlink_message_
     case MAVLINK_MSG_ID_HIGH_LATENCY2:
         _handleHighLatency2(message);
         break;
+    case MAVLINK_MSG_ID_BLACKBOX_LOW_BANDWIDTH_POSITION:
+        _handleBlackboxLowBandwidthPosition(message);
+        break;
+    case MAVLINK_MSG_ID_BLACKBOX_LOW_BANDWIDTH_STATUS:
+        _handleBlackboxLowBandwidthStatus(vehicle, message);
+        break;
     default:
         break;
     }
@@ -95,4 +101,29 @@ void VehicleGPSFactGroup::_handleHighLatency2(const mavlink_message_t &message)
     vdop()->setRawValue((highLatency2.epv == UINT8_MAX) ? qQNaN() : (highLatency2.epv / 10.0));
 
     _setTelemetryAvailable(true);
+}
+
+void VehicleGPSFactGroup::_handleBlackboxLowBandwidthPosition(const mavlink_message_t &message)
+{
+    mavlink_blackbox_low_bandwidth_position_t pos{};
+    mavlink_msg_blackbox_low_bandwidth_position_decode(&message, &pos);
+
+    lat()->setRawValue(pos.lat / 1E7);
+    lon()->setRawValue(pos.lon / 1E7);
+    mgrs()->setRawValue(QGCGeo::convertGeoToMGRS(QGeoCoordinate(pos.lat / 1E7, pos.lon / 1E7, pos.altitude_amsl / 1000.0)));
+
+    _setTelemetryAvailable(true);
+}
+
+void VehicleGPSFactGroup::_handleBlackboxLowBandwidthStatus(Vehicle *vehicle, const mavlink_message_t &message)
+{
+    mavlink_blackbox_low_bandwidth_status_t status{};
+    mavlink_msg_blackbox_low_bandwidth_status_decode(&message, &status);
+
+    count()->setRawValue(status.satellites_visible);
+    lock()->setRawValue(status.fix_type);
+
+    _setTelemetryAvailable(true);
+
+    Q_UNUSED(vehicle);
 }

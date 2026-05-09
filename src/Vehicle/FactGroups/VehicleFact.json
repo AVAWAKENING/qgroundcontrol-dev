@@ -81,6 +81,13 @@
     "units":            "m"
 },
 {
+    "name":             "altitudeEllipsoid",
+    "shortDesc": "Alt (Ellipsoid)",
+    "type":             "double",
+    "decimalPlaces":    1,
+    "units":            "m"
+},
+{
     "name":             "altitudeAboveTerr",
     "shortDesc": "Alt (Above Terrain)",
     "type":             "double",

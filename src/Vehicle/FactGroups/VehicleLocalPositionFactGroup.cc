@@ -32,20 +32,25 @@ void VehicleLocalPositionFactGroup::handleMessage(Vehicle *vehicle, const mavlin
 {
     Q_UNUSED(vehicle);
 
-    if (message.msgid != MAVLINK_MSG_ID_LOCAL_POSITION_NED) {
-        return;
+    if (message.msgid == MAVLINK_MSG_ID_LOCAL_POSITION_NED) {
+        mavlink_local_position_ned_t localPosition{};
+        mavlink_msg_local_position_ned_decode(&message, &localPosition);
+
+        x()->setRawValue(localPosition.x);
+        y()->setRawValue(localPosition.y);
+        z()->setRawValue(localPosition.z);
+
+        vx()->setRawValue(localPosition.vx);
+        vy()->setRawValue(localPosition.vy);
+        vz()->setRawValue(localPosition.vz);
+
+        _setTelemetryAvailable(true);
+    } else if (message.msgid == MAVLINK_MSG_ID_BLACKBOX_LOW_BANDWIDTH_POSITION) {
+        mavlink_blackbox_low_bandwidth_position_t pos{};
+        mavlink_msg_blackbox_low_bandwidth_position_decode(&message, &pos);
+
+        vx()->setRawValue(-pos.south_velocity / 100.0);
+
+        _setTelemetryAvailable(true);
     }
-
-    mavlink_local_position_ned_t localPosition{};
-    mavlink_msg_local_position_ned_decode(&message, &localPosition);
-
-    x()->setRawValue(localPosition.x);
-    y()->setRawValue(localPosition.y);
-    z()->setRawValue(localPosition.z);
-
-    vx()->setRawValue(localPosition.vx);
-    vy()->setRawValue(localPosition.vy);
-    vz()->setRawValue(localPosition.vz);
-
-    _setTelemetryAvailable(true);
 }
