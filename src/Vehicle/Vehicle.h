@@ -967,6 +967,9 @@ private:
     void _handleGlobalPositionInt       (mavlink_message_t& message);
     void _handleHighLatency             (mavlink_message_t& message);
     void _handleHighLatency2            (mavlink_message_t& message);
+    void _handleBlackboxLowBandwidthPosition(mavlink_message_t& message);
+    void _handleBlackboxLowBandwidthStatus(mavlink_message_t& message);
+    void _updateBatteryFromBlackbox     (uint8_t batteryRemaining);
     void _handleOrbitExecutionStatus    (const mavlink_message_t& message);
     void _handleGimbalOrientation       (const mavlink_message_t& message);
     void _handleObstacleDistance        (const mavlink_message_t& message);
@@ -1037,6 +1040,8 @@ private:
     bool            _gpsRawIntMessageAvailable              = false;
     bool            _gps2RawMessageAvailable                = false;
     bool            _globalPositionIntMessageAvailable      = false;
+    bool            _blackboxPositionAvailable              = false;
+    bool            _blackboxStatusAvailable                = false;
     double          _defaultCruiseSpeed = qQNaN();
     double          _defaultHoverSpeed = qQNaN();
     int             _telemetryRRSSI = 0;

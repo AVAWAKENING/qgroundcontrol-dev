@@ -29,6 +29,7 @@ VehicleFactGroup::VehicleFactGroup(QObject *parent)
     _addFact(&_climbRateFact);
     _addFact(&_altitudeRelativeFact);
     _addFact(&_altitudeAMSLFact);
+    _addFact(&_altitudeEllipsoidFact);
     _addFact(&_altitudeAboveTerrFact);
     _addFact(&_altitudeTuningFact);
     _addFact(&_altitudeTuningSetpointFact);
@@ -70,6 +71,9 @@ void VehicleFactGroup::handleMessage(Vehicle *vehicle, const mavlink_message_t &
         break;
     case MAVLINK_MSG_ID_RAW_IMU:
         _handleRawImuTemp(message);
+        break;
+    case MAVLINK_MSG_ID_BLACKBOX_LOW_BANDWIDTH_POSITION:
+        _handleBlackboxLowBandwidthPosition(message);
         break;
 #ifndef QGC_NO_ARDUPILOT_DIALECT
     case MAVLINK_MSG_ID_RANGEFINDER:
@@ -222,3 +226,21 @@ void VehicleFactGroup::_handleRangefinder(const mavlink_message_t &message)
     _setTelemetryAvailable(true);
 }
 #endif
+
+void VehicleFactGroup::_handleBlackboxLowBandwidthPosition(const mavlink_message_t &message)
+{
+    mavlink_blackbox_low_bandwidth_position_t pos{};
+    mavlink_msg_blackbox_low_bandwidth_position_decode(&message, &pos);
+
+    if (!_altitudeMessageAvailable) {
+        altitudeAMSL()->setRawValue(pos.altitude_amsl / 1000.0);
+        altitudeRelative()->setRawValue(pos.relative_alt / 1000.0);
+    }
+
+    altitudeEllipsoid()->setRawValue(pos.altitude_ellipsoid / 1000.0);
+    groundSpeed()->setRawValue(pos.ground_velocity / 100.0);
+    climbRate()->setRawValue(-pos.vertical_velocity / 100.0);
+    heading()->setRawValue(pos.heading / 100.0);
+
+    _setTelemetryAvailable(true);
+}
