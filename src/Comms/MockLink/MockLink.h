@@ -2,12 +2,12 @@
 
 #include "PX4/px4_custom_mode.h"
 #include "LinkInterface.h"
-#include "MAVLinkLib.h"
+#include "MAVLinkMessageType.h"
+#include "QGCMAVLinkTypes.h"
 #include "MockConfiguration.h"
 #include "MockLinkMissionItemHandler.h"
 
 #include <QtCore/QElapsedTimer>
-#include <QtCore/QLoggingCategory>
 #include <QtCore/QMap>
 #include <QtCore/QMutex>
 #include <QtCore/QSet>
@@ -20,9 +20,6 @@ class MockLinkFTP;
 class MockLinkGimbal;
 class MockLinkWorker;
 class QThread;
-
-Q_DECLARE_LOGGING_CATEGORY(MockLinkLog)
-Q_DECLARE_LOGGING_CATEGORY(MockLinkVerboseLog)
 
 class MockLink : public LinkInterface
 {
@@ -119,6 +116,7 @@ public:
         FailParamSetNone,               ///< Normal behavior
         FailParamSetNoAck,              ///< Do not send PARAM_VALUE ack
         FailParamSetFirstAttemptNoAck,  ///< Skip ack on first attempt, respond to retry
+        FailParamSetParamError,         ///< Respond with PARAM_ERROR (VALUE_OUT_OF_RANGE) instead of PARAM_VALUE
     };
     void setParamSetFailureMode(ParamSetFailureMode_t mode) {
         _paramSetFailureMode = mode;
@@ -129,6 +127,7 @@ public:
         FailParamRequestReadNone,               ///< Normal behavior
         FailParamRequestReadNoResponse,         ///< Do not respond to PARAM_REQUEST_READ
         FailParamRequestReadFirstAttemptNoResponse, ///< Skip response on first attempt, respond to retry
+        FailParamRequestReadParamError,         ///< Respond with PARAM_ERROR (DOES_NOT_EXIST) instead of PARAM_VALUE
     };
     void setParamRequestReadFailureMode(ParamRequestReadFailureMode_t mode) {
         _paramRequestReadFailureMode = mode;
@@ -186,6 +185,8 @@ private:
 
     uint8_t _getMavlinkAuxChannel() const { return _mavlinkAuxChannel; }
     bool _mavlinkAuxChannelIsSet() const;
+    uint8_t _getMavlinkVehicleChannel() const { return _mavlinkVehicleChannel; }
+    bool _mavlinkVehicleChannelIsSet() const;
 
     void _loadParams();
 
@@ -217,6 +218,7 @@ private:
     void _handleLogRequestData(const mavlink_message_t &msg);
     void _handleParamMapRC(const mavlink_message_t &msg);
     void _handleSetupSigning(const mavlink_message_t &msg);
+    void _sendParamError(int componentId, const char *paramId, int16_t paramIndex, uint8_t errorCode);
     void _handleRequestMessage(const mavlink_command_long_t &request, bool &accepted, bool &noAck);
     void _handleRequestMessageAutopilotVersion(const mavlink_command_long_t &request, bool &accepted);
     void _handleRequestMessageDebug(const mavlink_command_long_t &request, bool &accepted, bool &noAck);
@@ -279,6 +281,11 @@ private:
 
     uint8_t _mavlinkAuxChannel = std::numeric_limits<uint8_t>::max();
     QMutex _mavlinkAuxMutex;
+    /// Vehicle-side outgoing channel; signing state lives here, decoupled from QGC's parser channel.
+    uint8_t _mavlinkVehicleChannel = std::numeric_limits<uint8_t>::max();
+
+    mavlink_signing_t _mockSigning{};
+    mavlink_signing_streams_t _mockSigningStreams{};
 
     bool _connected = false;
     bool _inNSH = false;

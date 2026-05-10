@@ -1,6 +1,5 @@
 #include "QGroundControlQmlGlobal.h"
 
-#include "QGCApplication.h"
 #include "QGCCorePlugin.h"
 #include "LinkManager.h"
 #include "MAVLinkProtocol.h"
@@ -17,7 +16,7 @@
 #include "MissionCommandTree.h"
 #include "VideoManager.h"
 #include "MultiVehicleManager.h"
-#include "QGCLoggingCategory.h"
+#include "LoggingCategoryModel.h"
 #ifndef QGC_NO_SERIAL_LINK
 #include "GPSManager.h"
 #include "GPSRtk.h"
@@ -26,8 +25,12 @@
 #include "MockLink.h"
 #endif
 
-#include <QtCore/QSettings>
 #include <QtCore/QLineF>
+#include <QtCore/QSettings>
+#include <QtGui/QClipboard>
+#include <QtGui/QGuiApplication>
+
+#include "QGCLoggingCategory.h"
 
 QGC_LOGGING_CATEGORY(GuidedActionsControllerLog, "QMLControls.GuidedActionsController")
 
@@ -320,6 +323,11 @@ void QGroundControlQmlGlobal::testAudioOutput()
     AudioOutput::instance()->testAudioOutput();
 }
 
+void QGroundControlQmlGlobal::copyToClipboard(const QString& text)
+{
+    QGuiApplication::clipboard()->setText(text);
+}
+
 QString QGroundControlQmlGlobal::elevationProviderName()
 {
     return _settingsManager->flightMapSettings()->elevationMapProvider()->rawValue().toString();
@@ -345,27 +353,4 @@ QString QGroundControlQmlGlobal::appName()
     return QCoreApplication::applicationName();
 }
 
-QmlObjectListModel *QGroundControlQmlGlobal::treeLoggingCategoriesModel()
-{
-    return QGCLoggingCategoryManager::instance()->treeCategoryModel();
-}
 
-QmlObjectListModel *QGroundControlQmlGlobal::flatLoggingCategoriesModel()
-{
-    return QGCLoggingCategoryManager::instance()->flatCategoryModel();
-}
-
-void QGroundControlQmlGlobal::setCategoryLoggingOn(const QString &category, bool enable)
-{
-    QGCLoggingCategoryManager::instance()->setCategoryLoggingOn(category, enable);
-}
-
-bool QGroundControlQmlGlobal::categoryLoggingOn(const QString &category)
-{
-    return QGCLoggingCategoryManager::categoryLoggingOn(category);
-}
-
-void QGroundControlQmlGlobal::disableAllLoggingCategories()
-{
-    QGCLoggingCategoryManager::instance()->disableAllCategories();
-}

@@ -14,9 +14,7 @@ qt_add_qml_module(FlyViewModule
         DefaultChecklist.qml
         FixedWingChecklist.qml
         FlightDisplayViewDummy.qml
-        FlightDisplayViewGStreamer.qml
-        FlightDisplayViewGStreamerD3D11.qml
-        FlightDisplayViewMetal.qml
+        FlightDisplayViewVideoOutput.qml
         FlightDisplayViewQtMultimedia.qml
         FlightDisplayViewUVC.qml
         FlightDisplayViewVideo.qml
@@ -65,8 +63,6 @@ qt_add_qml_module(FlyViewModule
         PreFlightSoundCheck.qml
         ProximityRadarValues.qml
         ProximityRadarVideoView.qml
-        QGCVideoBackground.qml
-        QGCVideoBackgroundD3D11.qml
         RoverChecklist.qml
         SubChecklist.qml
         TelemetryValuesBar.qml
@@ -75,4 +71,21 @@ qt_add_qml_module(FlyViewModule
         VirtualJoystick.qml
         VTOLChecklist.qml
     NO_PLUGIN
+)
+
+qt_add_resources(FlyViewModule flyview_resources
+    PREFIX "/res"
+    BASE "${CMAKE_SOURCE_DIR}/resources"
+    FILES
+        "${CMAKE_SOURCE_DIR}/resources/Gripper.svg"
+        "${CMAKE_SOURCE_DIR}/resources/land.svg"
+        "${CMAKE_SOURCE_DIR}/resources/NoVideoBackground.jpg"
+        "${CMAKE_SOURCE_DIR}/resources/pause-mission.svg"
+)
+
+qt_add_resources(FlyViewModule flyview_qmlimages
+    PREFIX "/qmlimages"
+    BASE "${CMAKE_SOURCE_DIR}/resources"
+    FILES
+        "${CMAKE_SOURCE_DIR}/resources/check.svg"
 )

@@ -1,21 +1,24 @@
 #include "OnboardLogEntry.h"
-#include "QGCApplication.h"
+#include "MAVLinkLib.h"
+#include "QGCFormat.h"
 #include "QGCLoggingCategory.h"
 
 #include <QtCore/QtMath>
 
 QGC_LOGGING_CATEGORY(OnboardLogEntryLog, "AnalyzeView.QGCOnboardLogEntry")
 
+const uint32_t OnboardLogDownloadData::kChunkSize = OnboardLogDownloadData::kTableBins * MAVLINK_MSG_LOG_DATA_FIELD_DATA_LEN;
+
 OnboardLogDownloadData::OnboardLogDownloadData(QGCOnboardLogEntry * const logEntry)
     : ID(logEntry->id())
     , entry(logEntry)
 {
-    // qCDebug(OnboardLogEntryLog) << Q_FUNC_INFO << this;
+    qCDebug(OnboardLogEntryLog) << Q_FUNC_INFO << "id" << ID;
 }
 
 OnboardLogDownloadData::~OnboardLogDownloadData()
 {
-    // qCDebug(OnboardLogEntryLog) << Q_FUNC_INFO << this;
+    qCDebug(OnboardLogEntryLog) << Q_FUNC_INFO << "id" << ID;
 }
 
 void OnboardLogDownloadData::advanceChunk()
@@ -50,15 +53,15 @@ QGCOnboardLogEntry::QGCOnboardLogEntry(uint logId, const QDateTime &dateTime, ui
     , _logTimeUTC(dateTime)
     , _received(received)
 {
-    // qCDebug(OnboardLogEntryLog) << Q_FUNC_INFO << this;
+    qCDebug(OnboardLogEntryLog) << Q_FUNC_INFO << "id" << _logID;
 }
 
 QGCOnboardLogEntry::~QGCOnboardLogEntry()
 {
-    // qCDebug(OnboardLogEntryLog) << Q_FUNC_INFO << this;
+    qCDebug(OnboardLogEntryLog) << Q_FUNC_INFO << "id" << _logID;
 }
 
 QString QGCOnboardLogEntry::sizeStr() const
 {
-    return qgcApp()->bigSizeToString(_logSize);
+    return QGC::bigSizeToString(_logSize);
 }

@@ -14,7 +14,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import shlex
@@ -24,6 +23,12 @@ import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+_tools_dir = Path(__file__).resolve().parents[1]
+if str(_tools_dir) not in sys.path:
+    sys.path.insert(0, str(_tools_dir))
+
+from common.build_config import get_build_config_value  # noqa: E402
 
 # Package categories for Debian/Ubuntu
 DEBIAN_PACKAGES: dict[str, list[str]] = {
@@ -121,6 +126,17 @@ DEBIAN_PACKAGES: dict[str, list[str]] = {
     "audio": [
         "libpulse-dev",
     ],
+    "keychain": [
+        # Headers for the application-side gcry_check_version() init in
+        # Platform::initialize (src/Utilities/Platform/Platform.cc);
+        # without it, multiple gcrypt consumers (libsystemd, libdbus, libsecret)
+        # crash at shutdown via gcry_mpi_release on a half-owned secmem pool.
+        "libgcrypt20-dev",
+        # Enables qtkeychain's libsecret backend at *build* time. Without this
+        # package, qtkeychain falls back to KWallet-only and most non-KDE Linux
+        # users get NoBackendAvailable → QSettings fallback.
+        "libsecret-1-dev",
+    ],
     "misc": [
         "libvulkan-dev",
         "libpipewire-0.3-dev",
@@ -133,13 +149,16 @@ MACOS_PACKAGES: list[str] = [
     "ninja",
     "ccache",
     "git",
+    "just",
     "pkgconf",
     "create-dmg",
     "mold",
 ]
 
 # Windows GStreamer
-WINDOWS_GSTREAMER_BASE_URL = "https://qgroundcontrol.s3.us-west-2.amazonaws.com/dependencies/gstreamer/windows"
+WINDOWS_GSTREAMER_BASE_URL = (
+    "https://qgroundcontrol.s3.us-west-2.amazonaws.com/dependencies/gstreamer/windows"
+)
 WINDOWS_GSTREAMER_INSTALL_DIR = "C:\\gstreamer"
 WINDOWS_GSTREAMER_PREFIX = "C:\\gstreamer\\1.0\\msvc_x86_64"
 WINDOWS_VULKAN_INSTALL_DIR = "C:\\VulkanSDK\\latest"
@@ -152,40 +171,26 @@ PIPX_PACKAGES: list[str] = [
     "gcovr",
 ]
 
+# `just` ships in apt on Ubuntu 24.04+/Debian 13+ only; older releases need the upstream binary.
+JUST_VERSION = "1.36.0"
+JUST_TARGETS: dict[str, str] = {
+    "x86_64": "x86_64-unknown-linux-musl",
+    "aarch64": "aarch64-unknown-linux-musl",
+}
+
 APT_BASE_OPTIONS: list[str] = [
-    "-o", "DPkg::Lock::Timeout=300",
-    "-o", "Acquire::Retries=3",
+    "-o",
+    "DPkg::Lock::Timeout=300",
+    "-o",
+    "Acquire::Retries=3",
 ]
 PACKAGE_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9.+-]*$")
 
 
-def get_repo_root() -> Path:
-    """Find repository root directory."""
-    current = Path(__file__).resolve()
-    for parent in [current] + list(current.parents):
-        if (parent / ".git").exists():
-            return parent
-    return Path.cwd()
-
-
-def load_build_config() -> dict:
-    """Load build configuration from .github/build-config.json."""
-    config_path = get_repo_root() / ".github" / "build-config.json"
-    if config_path.exists():
-        try:
-            with open(config_path) as f:
-                return json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Error: invalid JSON in {config_path}: {e}", file=sys.stderr)
-            return {}
-    return {}
-
-
 def get_config_value(key: str) -> str | None:
-    """Get a top-level value from build config by key name."""
-    config = load_build_config()
-    value = config.get(key)
-    return value if isinstance(value, str) else None
+    """Get a top-level string value from build config by key name."""
+    value = get_build_config_value(key)
+    return value or None
 
 
 def detect_platform() -> str | None:
@@ -237,7 +242,8 @@ def get_apt_install_command(packages: list[str]) -> list[str]:
         "-y",
         "-qq",
         "--no-install-recommends",
-    ] + packages
+        *packages,
+    ]
 
 
 def get_apt_update_command() -> list[str]:
@@ -275,7 +281,7 @@ def run_apt_install_with_retry(
 
 def get_brew_install_command(packages: list[str]) -> list[str]:
     """Build brew install command."""
-    return ["brew", "install"] + packages
+    return ["brew", "install", *packages]
 
 
 def check_apt_package_available(package: str) -> bool:
@@ -290,10 +296,11 @@ def check_apt_package_available(package: str) -> bool:
 def get_available_debian_packages(category: str) -> list[str]:
     """Return packages in *category* that exist in apt metadata."""
     from concurrent.futures import ThreadPoolExecutor
+
     packages = get_debian_packages(category)
     with ThreadPoolExecutor() as pool:
         available = list(pool.map(check_apt_package_available, packages))
-    return [pkg for pkg, ok in zip(packages, available) if ok]
+    return [pkg for pkg, ok in zip(packages, available, strict=False) if ok]
 
 
 def validate_extra_packages(packages: list[str]) -> list[str]:
@@ -319,7 +326,7 @@ def run_command(cmd: list[str], dry_run: bool = False, sudo: bool = False) -> bo
     # os.geteuid is not available on Windows; treat missing API as non-root.
     is_root = hasattr(os, "geteuid") and os.geteuid() == 0
     if sudo and not is_root:
-        cmd = ["sudo"] + cmd
+        cmd = ["sudo", *cmd]
 
     if dry_run:
         print(f"  Would run: {shlex.join(cmd)}")
@@ -377,7 +384,9 @@ def add_to_path(path_entry: str) -> None:
 
         key_path = r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
         with winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE, key_path, 0,
+            winreg.HKEY_LOCAL_MACHINE,
+            key_path,
+            0,
             winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE,
         ) as key:
             current, _ = winreg.QueryValueEx(key, "Path")
@@ -399,6 +408,7 @@ def download_file(
 
     try:
         import httpx
+
         transport = httpx.HTTPTransport(retries=retries)
         with httpx.Client(
             transport=transport,
@@ -415,6 +425,7 @@ def download_file(
         return True
     except ImportError:
         import urllib.request
+
         req = urllib.request.Request(url, headers={"User-Agent": "qgc-deps-installer/1.0"})
         print(f"  Downloading {dest.name}...")
         with urllib.request.urlopen(req, timeout=timeout) as response, open(dest, "wb") as out:
@@ -423,6 +434,49 @@ def download_file(
     except Exception as e:
         print(f"Failed to download {url}: {e}", file=sys.stderr)
         return False
+
+
+def install_just_debian(dry_run: bool = False) -> bool:
+    """Install `just` via apt when available, else from upstream prebuilt binary."""
+    if has_command("just"):
+        return True
+
+    if check_apt_package_available("just"):
+        print("\nInstalling just (apt)...")
+        return run_apt_install_with_retry(["just"], dry_run, sudo=True)
+
+    import platform as _platform
+
+    machine = _platform.machine().lower()
+    target = JUST_TARGETS.get(machine)
+    if not target:
+        print(
+            f"Warning: no prebuilt 'just' for arch '{machine}'; install manually", file=sys.stderr
+        )
+        return True
+
+    url = f"https://github.com/casey/just/releases/download/{JUST_VERSION}/just-{JUST_VERSION}-{target}.tar.gz"
+    print(f"\nInstalling just {JUST_VERSION} (prebuilt: {target})...")
+    if dry_run:
+        print(f"  Would download: {url}")
+        print("  Would install: /usr/local/bin/just")
+        return True
+
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = Path(tmp) / "just.tar.gz"
+        if not download_file(url, archive):
+            return False
+        import tarfile
+
+        try:
+            with tarfile.open(archive, "r:gz") as tar:
+                tar.extract("just", path=tmp, filter="data")
+        except (tarfile.TarError, KeyError) as e:
+            print(f"Failed to extract just: {e}", file=sys.stderr)
+            return False
+        return run_command(
+            ["install", "-m", "0755", f"{tmp}/just", "/usr/local/bin/just"], dry_run, sudo=True
+        )
 
 
 def install_debian(
@@ -485,6 +539,10 @@ def install_debian(
                 print(f"Error: Failed to install pipx package: {pkg}", file=sys.stderr)
                 return False
 
+        if not install_just_debian(dry_run):
+            print("Error: Failed to install just", file=sys.stderr)
+            return False
+
     # Cleanup
     if not skip_system_packages and not category:
         print("\nCleaning up...")
@@ -518,8 +576,9 @@ def install_macos(dry_run: bool = False) -> bool:
                 print("Failed to install Homebrew", file=sys.stderr)
                 return False
 
-    # Update Homebrew
-    run_command(["brew", "update"], dry_run)
+    # CI runner images are refreshed weekly; `brew update` adds 30-60s for nothing.
+    if os.environ.get("HOMEBREW_NO_UPDATE") != "1" and not os.environ.get("CI"):
+        run_command(["brew", "update"], dry_run)
 
     # Install packages
     packages = get_macos_packages()
@@ -529,9 +588,14 @@ def install_macos(dry_run: bool = False) -> bool:
 
     # Install GStreamer
     gst_version = get_config_value("gstreamer_macos_version")
+    macos_gst_root = Path("/Library/Frameworks/GStreamer.framework")
     if not gst_version:
         print("\nWarning: GSTREAMER_MACOS_VERSION not found in build-config.json")
         print("Skipping GStreamer installation")
+    elif macos_gst_root.exists():
+        # Cache restore (actions/cache wrapping this script) puts the framework
+        # back; skip the .pkg download+installer round-trip.
+        print(f"GStreamer already installed at {macos_gst_root}; skipping")
     else:
         print(f"\nInstalling GStreamer {gst_version}...")
         runtime_url, devel_url = get_gstreamer_macos_urls(gst_version)
@@ -581,6 +645,16 @@ def install_windows_gstreamer(version: str, dry_run: bool = False) -> bool:
         print(f"Skipping GStreamer: only supported on AMD64 (detected: {arch or 'unknown'})")
         return True
 
+    prefix = WINDOWS_GSTREAMER_PREFIX
+    # Cache restore (actions/cache wrapping this script) leaves the install tree
+    # intact; skip download+msiexec but still publish env vars so the build sees it.
+    if Path(prefix, "bin", "gst-launch-1.0.exe").exists():
+        print(f"GStreamer already installed at {prefix}; skipping download+install")
+        set_env_var("GSTREAMER_1_0_ROOT_MSVC_X86_64", prefix)
+        set_env_var("GSTREAMER_1_0_ROOT_X86_64", prefix)
+        add_to_path(f"{prefix}\\bin")
+        return True
+
     base_url = f"{WINDOWS_GSTREAMER_BASE_URL}/{version}"
     runtime_name = f"gstreamer-1.0-msvc-x86_64-{version}.msi"
     devel_name = f"gstreamer-1.0-devel-msvc-x86_64-{version}.msi"
@@ -618,10 +692,17 @@ def install_windows_gstreamer(version: str, dry_run: bool = False) -> bool:
         install_dir = WINDOWS_GSTREAMER_INSTALL_DIR
         for label, msi in [("runtime", runtime_msi), ("devel", devel_msi)]:
             print(f"  Installing GStreamer {label}...")
-            if not run_command([
-                "msiexec.exe", "/i", str(msi),
-                "/passive", f"INSTALLDIR={install_dir}", "ADDLOCAL=ALL",
-            ], dry_run):
+            if not run_command(
+                [
+                    "msiexec.exe",
+                    "/i",
+                    str(msi),
+                    "/passive",
+                    f"INSTALLDIR={install_dir}",
+                    "ADDLOCAL=ALL",
+                ],
+                dry_run,
+            ):
                 return False
 
     prefix = WINDOWS_GSTREAMER_PREFIX
@@ -641,14 +722,22 @@ def install_windows_vulkan(dry_run: bool = False) -> bool:
         if not download_file(WINDOWS_VULKAN_URL, installer, dry_run):
             return False
 
-        if not run_command([
-            str(installer),
-            "--root", install_dir,
-            "--accept-licenses", "--default-answer", "--confirm-command",
-            "install",
-            "com.lunarg.vulkan.glm", "com.lunarg.vulkan.volk",
-            "com.lunarg.vulkan.vma", "com.lunarg.vulkan.debug",
-        ], dry_run):
+        if not run_command(
+            [
+                str(installer),
+                "--root",
+                install_dir,
+                "--accept-licenses",
+                "--default-answer",
+                "--confirm-command",
+                "install",
+                "com.lunarg.vulkan.glm",
+                "com.lunarg.vulkan.volk",
+                "com.lunarg.vulkan.vma",
+                "com.lunarg.vulkan.debug",
+            ],
+            dry_run,
+        ):
             return False
 
     set_env_var("VULKAN_SDK", install_dir)
@@ -680,9 +769,8 @@ def install_windows(
         if not install_windows_gstreamer(version, dry_run):
             return False
 
-    if vulkan:
-        if not install_windows_vulkan(dry_run):
-            return False
+    if vulkan and not install_windows_vulkan(dry_run):
+        return False
 
     print("\nWindows dependencies installed!")
     return True
@@ -708,7 +796,7 @@ def list_packages(platform: str | None = None) -> None:
             print(f"\n{category} ({len(packages)} packages):")
             for pkg in packages:
                 print(f"  - {pkg}")
-        print(f"\nPipx packages:")
+        print("\nPipx packages:")
         for pkg in PIPX_PACKAGES:
             print(f"  - {pkg}")
 
@@ -858,7 +946,10 @@ def main() -> int:
         success = install_macos(args.dry_run)
     elif platform == "windows":
         success = install_windows(
-            args.dry_run, args.gstreamer_version, args.skip_gstreamer, args.vulkan,
+            args.dry_run,
+            args.gstreamer_version,
+            args.skip_gstreamer,
+            args.vulkan,
         )
     else:
         print(f"Error: Unsupported platform: {platform}", file=sys.stderr)

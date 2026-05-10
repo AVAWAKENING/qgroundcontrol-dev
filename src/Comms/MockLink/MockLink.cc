@@ -1,15 +1,19 @@
 #include "MockLink.h"
+#include "MAVLinkLib.h"
 #include "LinkManager.h"
+#include "MAVLinkProtocol.h"
+#include "MAVLinkSigning.h"
+#include "SecureMemory.h"
 #include "MockLinkCamera.h"
 #include "MockLinkFTP.h"
 #include "MockLinkGimbal.h"
 #include "MockLinkWorker.h"
-#include "QGCApplication.h"
 #include "QGCLoggingCategory.h"
 #include "FirmwarePlugin.h"
 #include "FactMetaData.h"
 #include "ParameterManager.h"
-#include "QGC.h"
+#include "AppMessages.h"
+#include "QGCMath.h"
 
 #include <QtCore/QFile>
 #include <QtCore/QMutexLocker>
@@ -143,8 +147,8 @@ bool MockLink::_connect()
     if (!_connected) {
         _connected = true;
         _disconnectedEmitted = false;
-        mavlink_status_t *const mavlinkStatus = mavlink_get_channel_status(mavlinkChannel());
-        mavlinkStatus->flags &= ~MAVLINK_STATUS_FLAG_OUT_MAVLINK1;
+        mavlink_status_t *const vehicleStatus = mavlink_get_channel_status(_getMavlinkVehicleChannel());
+        vehicleStatus->flags &= ~MAVLINK_STATUS_FLAG_OUT_MAVLINK1;
         mavlink_status_t *const auxStatus = mavlink_get_channel_status(_getMavlinkAuxChannel());
         auxStatus->flags &= ~MAVLINK_STATUS_FLAG_OUT_MAVLINK1;
         emit connected();
@@ -164,6 +168,14 @@ void MockLink::disconnect()
     if (_workerThread && _workerThread->isRunning()) {
         _workerThread->quit();
         _workerThread->wait();
+    }
+
+    // signing/streams pointers alias MockLink memory — clear before emit in case the disconnected signal frees us.
+    if (_mavlinkVehicleChannelIsSet()) {
+        mavlink_status_t* const vehicleStatus = mavlink_get_channel_status(_mavlinkVehicleChannel);
+        vehicleStatus->signing = nullptr;
+        vehicleStatus->signing_streams = nullptr;
+        mavlink_reset_channel_status(_mavlinkVehicleChannel);
     }
 
     if (_connected) {
@@ -202,7 +214,7 @@ void MockLink::run1HzTasks()
         _mockLinkCamera->sendCameraHeartbeats();
     }
 
-    if (!qgcApp()->runningUnitTests()) {
+    if (!QGC::runningUnitTests()) {
         // Sending RC Channels during unit test breaks RC tests which does it's own RC simulation
         _sendRCChannels();
     }
@@ -267,6 +279,7 @@ bool MockLink::_allocateMavlinkChannel()
 {
     // should only be called by the LinkManager during setup
     Q_ASSERT(!_mavlinkAuxChannelIsSet());
+    Q_ASSERT(!_mavlinkVehicleChannelIsSet());
     Q_ASSERT(!mavlinkChannelIsSet());
 
     if (!LinkInterface::_allocateMavlinkChannel()) {
@@ -276,30 +289,52 @@ bool MockLink::_allocateMavlinkChannel()
 
     _mavlinkAuxChannel = LinkManager::instance()->allocateMavlinkChannel();
     if (!_mavlinkAuxChannelIsSet()) {
-        qCWarning(MockLinkLog) << "_allocateMavlinkChannel failed";
+        qCWarning(MockLinkLog) << "_allocateMavlinkChannel aux failed";
         LinkInterface::_freeMavlinkChannel();
         return false;
     }
 
-    qCDebug(MockLinkLog) << "_allocateMavlinkChannel" << _mavlinkAuxChannel;
+    _mavlinkVehicleChannel = LinkManager::instance()->allocateMavlinkChannel();
+    if (!_mavlinkVehicleChannelIsSet()) {
+        qCWarning(MockLinkLog) << "_allocateMavlinkChannel vehicle failed";
+        LinkManager::instance()->freeMavlinkChannel(_mavlinkAuxChannel);
+        LinkInterface::_freeMavlinkChannel();
+        return false;
+    }
+
+    qCDebug(MockLinkLog) << "_allocateMavlinkChannel aux:" << _mavlinkAuxChannel << "vehicle:" << _mavlinkVehicleChannel;
     return true;
 }
 
 void MockLink::_freeMavlinkChannel()
 {
-    qCDebug(MockLinkLog) << "_freeMavlinkChannel" << _mavlinkAuxChannel;
+    qCDebug(MockLinkLog) << "_freeMavlinkChannel aux:" << _mavlinkAuxChannel << "vehicle:" << _mavlinkVehicleChannel;
     if (!_mavlinkAuxChannelIsSet()) {
+        Q_ASSERT(!_mavlinkVehicleChannelIsSet());
         Q_ASSERT(!mavlinkChannelIsSet());
         return;
     }
 
+    if (_mavlinkVehicleChannelIsSet()) {
+        // Detach our _mockSigning before the channel is freed; the bytes back this struct in MockLink memory.
+        mavlink_reset_channel_status(_mavlinkVehicleChannel);
+        LinkManager::instance()->freeMavlinkChannel(_mavlinkVehicleChannel);
+        _mavlinkVehicleChannel = LinkManager::invalidMavlinkChannel();
+    }
+    mavlink_reset_channel_status(_mavlinkAuxChannel);
     LinkManager::instance()->freeMavlinkChannel(_mavlinkAuxChannel);
+    _mavlinkAuxChannel = LinkManager::invalidMavlinkChannel();
     LinkInterface::_freeMavlinkChannel();
 }
 
 bool MockLink::_mavlinkAuxChannelIsSet() const
 {
     return (LinkManager::invalidMavlinkChannel() != _mavlinkAuxChannel);
+}
+
+bool MockLink::_mavlinkVehicleChannelIsSet() const
+{
+    return (LinkManager::invalidMavlinkChannel() != _mavlinkVehicleChannel);
 }
 
 void MockLink::_loadParams()
@@ -381,7 +416,7 @@ void MockLink::_sendHeartBeat()
     (void) mavlink_msg_heartbeat_pack_chan(
         _vehicleSystemId,
         _vehicleComponentId,
-        mavlinkChannel(),
+        _getMavlinkVehicleChannel(),
         &msg,
         _vehicleType,       // MAV_TYPE
         _firmwareType,      // MAV_AUTOPILOT
@@ -403,7 +438,7 @@ void MockLink::_sendHighLatency2()
     (void) mavlink_msg_high_latency2_pack_chan(
         _vehicleSystemId,
         _vehicleComponentId,
-        mavlinkChannel(),
+        _getMavlinkVehicleChannel(),
         &msg,
         0,                          // timestamp
         _vehicleType,               // MAV_TYPE
@@ -440,7 +475,7 @@ void MockLink::_sendSysStatus()
     (void) mavlink_msg_sys_status_pack_chan(
         _vehicleSystemId,
         _vehicleComponentId,
-        static_cast<uint8_t>(mavlinkChannel()),
+        _getMavlinkVehicleChannel(),
         &msg,
         MAV_SYS_STATUS_SENSOR_GPS,  // onboard_control_sensors_present
         0,                          // onboard_control_sensors_enabled
@@ -498,7 +533,7 @@ void MockLink::_sendBatteryStatus()
     (void) mavlink_msg_battery_status_pack_chan(
         _vehicleSystemId,
         _vehicleComponentId,
-        static_cast<uint8_t>(mavlinkChannel()),
+        _getMavlinkVehicleChannel(),
         &msg,
         1,                          // battery id
         MAV_BATTERY_FUNCTION_ALL,
@@ -520,7 +555,7 @@ void MockLink::_sendBatteryStatus()
     (void) mavlink_msg_battery_status_pack_chan(
         _vehicleSystemId,
         _vehicleComponentId,
-        static_cast<uint8_t>(mavlinkChannel()),
+        _getMavlinkVehicleChannel(),
         &msg,
         2,                          // battery id
         MAV_BATTERY_FUNCTION_ALL,
@@ -546,7 +581,7 @@ void MockLink::_sendVibration()
     (void) mavlink_msg_vibration_pack_chan(
         _vehicleSystemId,
         _vehicleComponentId,
-        mavlinkChannel(),
+        _getMavlinkVehicleChannel(),
         &msg,
         0,       // time_usec
         50.5,    // vibration_x,
@@ -752,6 +787,24 @@ void MockLink::_handleSetupSigning(const mavlink_message_t &msg)
     }
 
     _signingEnabled = !allZeroKey;
+
+    // Write C-state directly; routing through SigningController would clobber its _keyHint mid-confirmation.
+    mavlink_status_t* const status = mavlink_get_channel_status(_getMavlinkVehicleChannel());
+    if (_signingEnabled) {
+        memcpy(_mockSigning.secret_key, setupSigning.secret_key, sizeof(_mockSigning.secret_key));
+        _mockSigning.link_id = _getMavlinkVehicleChannel();
+        _mockSigning.flags = MAVLINK_SIGNING_FLAG_SIGN_OUTGOING;
+        _mockSigning.timestamp = MAVLinkSigning::currentSigningTimestampTicks();
+        _mockSigning.accept_unsigned_callback = MAVLinkSigning::insecureConnectionAcceptUnsignedCallback;
+        status->signing = &_mockSigning;
+        status->signing_streams = &_mockSigningStreams;
+    } else {
+        QGC::secureZero(_mockSigning.secret_key, sizeof(_mockSigning.secret_key));
+        _mockSigning.accept_unsigned_callback = nullptr;
+        status->signing = nullptr;
+        status->signing_streams = nullptr;
+    }
+
     qCDebug(MockLinkLog) << "Signing" << (_signingEnabled ? "enabled" : "disabled");
 }
 
@@ -987,7 +1040,7 @@ void MockLink::_paramRequestListWorker()
             (void) mavlink_msg_param_value_pack_chan(
                 _vehicleSystemId,
                 componentId,
-                mavlinkChannel(),
+                _getMavlinkVehicleChannel(),
                 &responseMsg,
                 paramId,
                 valueUnion.param_float,
@@ -1034,7 +1087,7 @@ void MockLink::_paramRequestListWorker()
         (void) mavlink_msg_param_value_pack_chan(
             _vehicleSystemId,
             componentId,                                   // component id
-            mavlinkChannel(),
+            _getMavlinkVehicleChannel(),
             &responseMsg,                                  // Outgoing message
             paramId,                                       // Parameter name
             _floatUnionForParam(componentId, paramName),   // Parameter value
@@ -1093,6 +1146,14 @@ void MockLink::_handleParamSet(const mavlink_message_t &msg)
         return;
     }
 
+    if (_paramSetFailureMode == FailParamSetParamError) {
+        qCDebug(MockLinkLog) << "Param set failure: PARAM_ERROR" << paramId;
+        _sendParamError(componentId, paramId,
+                        _mapParamName2Value[componentId].keys().indexOf(paramId),
+                        MAV_PARAM_ERROR_VALUE_OUT_OF_RANGE);
+        return;
+    }
+
     // Normal success path
     _setParamFloatUnionIntoMap(componentId, paramId, request.param_value);
 
@@ -1100,7 +1161,7 @@ void MockLink::_handleParamSet(const mavlink_message_t &msg)
     mavlink_msg_param_value_pack_chan(
         _vehicleSystemId,
         componentId,                                               // component id
-        mavlinkChannel(),
+        _getMavlinkVehicleChannel(),
         &responseMsg,                                              // Outgoing message
         paramId,                                                   // Parameter name
         request.param_value,                                       // Send same value back
@@ -1137,7 +1198,7 @@ void MockLink::_handleParamRequestRead(const mavlink_message_t &msg)
         (void) mavlink_msg_param_value_pack_chan(
             _vehicleSystemId,
             hashComponentId,
-            mavlinkChannel(),
+            _getMavlinkVehicleChannel(),
             &responseMsg,
             request.param_id,
             valueUnion.param_float,
@@ -1188,16 +1249,42 @@ void MockLink::_handleParamRequestRead(const mavlink_message_t &msg)
         return;
     }
 
+    if (_paramRequestReadFailureMode == FailParamRequestReadParamError) {
+        qCDebug(MockLinkLog) << "Param request read failure: PARAM_ERROR" << paramId;
+        _sendParamError(componentId, paramId, request.param_index, MAV_PARAM_ERROR_DOES_NOT_EXIST);
+        return;
+    }
+
     (void) mavlink_msg_param_value_pack_chan(
         _vehicleSystemId,
         componentId,                                               // component id
-        mavlinkChannel(),
+        _getMavlinkVehicleChannel(),
         &responseMsg,                                              // Outgoing message
         paramId,                                                   // Parameter name
         _floatUnionForParam(componentId, paramId),                 // Parameter value
         _mapParamName2MavParamType[componentId][paramId],          // Parameter type
         _mapParamName2Value[componentId].count(),                  // Total number of parameters
         _mapParamName2Value[componentId].keys().indexOf(paramId)   // Index of this parameter
+    );
+    respondWithMavlinkMessage(responseMsg);
+}
+
+void MockLink::_sendParamError(int componentId, const char *paramId, int16_t paramIndex, uint8_t errorCode)
+{
+    mavlink_message_t responseMsg{};
+    char paramIdBuf[MAVLINK_MSG_PARAM_ERROR_FIELD_PARAM_ID_LEN + 1] = {};
+    (void) strncpy(paramIdBuf, paramId, MAVLINK_MSG_PARAM_ERROR_FIELD_PARAM_ID_LEN);
+
+    (void) mavlink_msg_param_error_pack_chan(
+        _vehicleSystemId,
+        static_cast<uint8_t>(componentId),
+        mavlinkChannel(),
+        &responseMsg,
+        MAVLinkProtocol::instance()->getSystemId(),
+        MAVLinkProtocol::getComponentId(),
+        paramIdBuf,
+        paramIndex,
+        errorCode
     );
     respondWithMavlinkMessage(responseMsg);
 }

@@ -1,7 +1,6 @@
 ﻿#include "FirmwareUpgradeController.h"
 #include "PX4FirmwareUpgradeThread.h"
 #include "Bootloader.h"
-#include "QGCApplication.h"
 #include "QGCFileDownload.h"
 #include "QGCOptions.h"
 #include "QGCCorePlugin.h"
@@ -15,6 +14,8 @@
 #include "QGCLoggingCategory.h"
 
 #include <QtCore/QDir>
+
+QGC_LOGGING_CATEGORY(FirmwareUpgradeControllerLog, "Vehicle.VehicleSetup.FirmwareUpgradeController")
 #include <QtCore/QStandardPaths>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
@@ -136,6 +137,7 @@ FirmwareUpgradeController::FirmwareUpgradeController(void)
     connect(_threadController, &PX4FirmwareUpgradeThreadController::eraseComplete,          this, &FirmwareUpgradeController::_eraseComplete);
     connect(_threadController, &PX4FirmwareUpgradeThreadController::flashComplete,          this, &FirmwareUpgradeController::_flashComplete);
     connect(_threadController, &PX4FirmwareUpgradeThreadController::updateProgress,         this, &FirmwareUpgradeController::_updateProgress);
+    connect(_threadController, &PX4FirmwareUpgradeThreadController::portsAvailable,         this, &FirmwareUpgradeController::_portsAvailable);
 
     connect(&_eraseTimer, &QTimer::timeout, this, &FirmwareUpgradeController::_eraseProgressTick);
 
@@ -175,7 +177,7 @@ void FirmwareUpgradeController::flash(AutoPilotStackType_t stackType,
                                       FirmwareBuildType_t firmwareType,
                                       FirmwareVehicleType_t vehicleType)
 {
-    qCDebug(FirmwareUpgradeLog) << "FirmwareUpgradeController::flash stackType:firmwareType:vehicleType" << stackType << firmwareType << vehicleType;
+    qCDebug(FirmwareUpgradeControllerLog) << "FirmwareUpgradeController::flash stackType:firmwareType:vehicleType" << stackType << firmwareType << vehicleType;
     FirmwareIdentifier firmwareId = FirmwareIdentifier(stackType, firmwareType, vehicleType);
     if (_bootloaderFound) {
         _getFirmwareFile(firmwareId);
@@ -211,7 +213,25 @@ void FirmwareUpgradeController::flashSingleFirmwareMode(FirmwareBuildType_t firm
 void FirmwareUpgradeController::cancel(void)
 {
     _eraseTimer.stop();
+    _flashCancelled = true;
+    if (_activeDownloader) {
+        _activeDownloader->cancel();
+    }
     _threadController->cancel();
+}
+
+void FirmwareUpgradeController::flashPort(const QString& systemLocation)
+{
+    qCDebug(FirmwareUpgradeControllerLog) << "flashPort" << systemLocation;
+    _bootloaderFound = false;
+    _startFlashWhenBootloaderFound = false;
+    _threadController->setTargetPort(systemLocation);
+}
+
+void FirmwareUpgradeController::_portsAvailable(const QVariantList& ports)
+{
+    _availablePorts = ports;
+    emit availablePortsChanged();
 }
 
 QStringList FirmwareUpgradeController::availableBoardsName(void)
@@ -235,7 +255,13 @@ void FirmwareUpgradeController::_foundBoard(bool firstAttempt, const QSerialPort
 {
     _boardInfo      = info;
     _boardType      = static_cast<QGCSerialPortInfo::BoardType_t>(boardType);
-    _boardTypeName  = boardName;
+    if (!boardName.isEmpty()) {
+        _boardTypeName = boardName;
+    } else if (!info.description().isEmpty()) {
+        _boardTypeName = info.description();
+    } else {
+        _boardTypeName = info.portName();
+    }
 
     qDebug() << info.manufacturer() << info.description();
 
@@ -252,7 +278,7 @@ void FirmwareUpgradeController::_foundBoard(bool firstAttempt, const QSerialPort
         }
     }
 
-    qCDebug(FirmwareUpgradeLog) << _boardType << _boardTypeName;
+    qCDebug(FirmwareUpgradeControllerLog) << _boardType << _boardTypeName;
     emit boardFound();
 }
 
@@ -356,15 +382,23 @@ void FirmwareUpgradeController::_downloadFirmware(void)
 {
     Q_ASSERT(!_firmwareFilename.isEmpty());
 
-    _appendStatusLog(tr("Downloading firmware..."));
-    _appendStatusLog(tr(" From: %1").arg(_firmwareFilename));
+    _flashCancelled = false;
+
+    const bool isRemote = _firmwareFilename.startsWith(QStringLiteral("http"), Qt::CaseInsensitive);
+    if (isRemote) {
+        _appendStatusLog(tr("Downloading firmware from %1").arg(_firmwareFilename));
+    } else {
+        _appendStatusLog(tr("Using firmware file %1").arg(_firmwareFilename));
+    }
 
     QGCFileDownload* downloader = new QGCFileDownload(this);
+    _activeDownloader = downloader;
     connect(downloader, &QGCFileDownload::finished, downloader, &QObject::deleteLater);
     connect(downloader, &QGCFileDownload::finished, this, &FirmwareUpgradeController::_firmwareDownloadComplete);
     connect(downloader, &QGCFileDownload::downloadProgress, this, &FirmwareUpgradeController::_firmwareDownloadProgress);
     if (!downloader->start(_firmwareFilename)) {
         downloader->deleteLater();
+        _activeDownloader = nullptr;
         _errorCancel(downloader->errorString());
         return;
     }
@@ -382,8 +416,18 @@ void FirmwareUpgradeController::_firmwareDownloadProgress(qint64 curr, qint64 to
 /// @brief Called when the firmware download completes.
 void FirmwareUpgradeController::_firmwareDownloadComplete(bool success, const QString &localFile, const QString &errorMsg)
 {
+    _activeDownloader = nullptr;
+
+    if (_flashCancelled) {
+        // User cancelled while the download was in flight; ignore late completion.
+        return;
+    }
+
     if (success) {
-        _appendStatusLog(tr("Download complete"));
+        const bool isRemote = _firmwareFilename.startsWith(QStringLiteral("http"), Qt::CaseInsensitive);
+        if (isRemote) {
+            _appendStatusLog(tr("Download complete"));
+        }
 
         FirmwareImage* image = new FirmwareImage(this);
 
@@ -435,7 +479,6 @@ void FirmwareUpgradeController::_flashComplete(void)
     _image = nullptr;
 
     _appendStatusLog(tr("Upgrade complete"), true);
-    _appendStatusLog("------------------------------------------", false);
     emit flashComplete();
     LinkManager::instance()->setConnectionsAllowed();
 }
@@ -477,7 +520,7 @@ void FirmwareUpgradeController::_appendStatusLog(const QString& text, bool criti
     QString varText;
 
     if (critical) {
-        varText = QString("<font color=\"yellow\">%1</font>").arg(text);
+        varText = QString("<b>%1</b>").arg(text);
     } else {
         varText = text;
     }
@@ -491,7 +534,6 @@ void FirmwareUpgradeController::_errorCancel(const QString& msg)
 {
     _appendStatusLog(msg, false);
     _appendStatusLog(tr("Upgrade cancelled"), true);
-    _appendStatusLog("------------------------------------------", false);
     emit error();
     cancel();
     LinkManager::instance()->setConnectionsAllowed();
@@ -502,6 +544,7 @@ void FirmwareUpgradeController::_eraseStarted(void)
     // We set up our own progress bar for erase since the erase command does not provide one
     _eraseTickCount = 0;
     _eraseTimer.start(_eraseTickMsec);
+    emit eraseStarted();
 }
 
 void FirmwareUpgradeController::_eraseComplete(void)
@@ -526,7 +569,7 @@ void FirmwareUpgradeController::_buildAPMFirmwareNames(void)
     quint16                 boardPID =          _boardInfo.productIdentifier();
     uint32_t                rawBoardId =        _bootloaderBoardID == Bootloader::boardIDPX4FMUV3 ? Bootloader::boardIDPX4FMUV2 : _bootloaderBoardID;
 
-    qCDebug(FirmwareUpgradeLog) << QStringLiteral("_buildAPMFirmwareNames description(%1) vid(%2/0x%3) pid(%4/0x%5)").arg(boardDescription).arg(boardVID).arg(boardVID, 1, 16).arg(boardPID).arg(boardPID, 1, 16);
+    qCDebug(FirmwareUpgradeControllerLog) << QStringLiteral("_buildAPMFirmwareNames description(%1) vid(%2/0x%3) pid(%4/0x%5)").arg(boardDescription).arg(boardVID).arg(boardVID, 1, 16).arg(boardPID).arg(boardPID, 1, 16);
 
     _apmFirmwareNames.clear();
     _apmFirmwareNamesBestIndex = -1;
@@ -541,13 +584,13 @@ void FirmwareUpgradeController::_buildAPMFirmwareNames(void)
         bool match = false;
         if (firmwareInfo.firmwareBuildType == _selectedFirmwareBuildType && firmwareInfo.chibios == chibios && firmwareInfo.vehicleType == vehicleType && firmwareInfo.boardId == rawBoardId) {
             if (firmwareInfo.fmuv2 && _bootloaderBoardID == Bootloader::boardIDPX4FMUV3) {
-                qCDebug(FirmwareUpgradeLog) << "Skipping fmuv2 manifest entry for fmuv3 board:" << firmwareInfo.friendlyName << boardDescription << firmwareInfo.rgBootloaderPortString << firmwareInfo.url << firmwareInfo.vehicleType;
+                qCDebug(FirmwareUpgradeControllerLog) << "Skipping fmuv2 manifest entry for fmuv3 board:" << firmwareInfo.friendlyName << boardDescription << firmwareInfo.rgBootloaderPortString << firmwareInfo.url << firmwareInfo.vehicleType;
             } else {
-                qCDebug(FirmwareUpgradeLog) << "Board id match:" << firmwareInfo.friendlyName << boardDescription << firmwareInfo.rgBootloaderPortString << firmwareInfo.url << firmwareInfo.vehicleType;
+                qCDebug(FirmwareUpgradeControllerLog) << "Board id match:" << firmwareInfo.friendlyName << boardDescription << firmwareInfo.rgBootloaderPortString << firmwareInfo.url << firmwareInfo.vehicleType;
                 match = true;
                 if (bootloaderMatch && _apmFirmwareNamesBestIndex == -1 && firmwareInfo.rgBootloaderPortString.contains(boardDescription)) {
                     _apmFirmwareNamesBestIndex = currentIndex;
-                    qCDebug(FirmwareUpgradeLog) << "Bootloader best match:" << firmwareInfo.friendlyName << boardDescription << firmwareInfo.rgBootloaderPortString << firmwareInfo.url << firmwareInfo.vehicleType;
+                    qCDebug(FirmwareUpgradeControllerLog) << "Bootloader best match:" << firmwareInfo.friendlyName << boardDescription << firmwareInfo.rgBootloaderPortString << firmwareInfo.url << firmwareInfo.vehicleType;
                 }
             }
         }
@@ -587,7 +630,7 @@ void FirmwareUpgradeController::_determinePX4StableVersion(void)
     connect(downloader, &QGCFileDownload::finished, downloader, &QObject::deleteLater);
     connect(downloader, &QGCFileDownload::finished, this, &FirmwareUpgradeController::_px4ReleasesGithubDownloadComplete);
     if (!downloader->start(QStringLiteral("https://api.github.com/repos/PX4/Firmware/releases"))) {
-        qCWarning(FirmwareUpgradeLog) << "PX4 releases github download did not start:" << downloader->errorString();
+        qCWarning(FirmwareUpgradeControllerLog) << "PX4 releases github download did not start:" << downloader->errorString();
         downloader->deleteLater();
         return;
     }
@@ -598,7 +641,7 @@ void FirmwareUpgradeController::_px4ReleasesGithubDownloadComplete(bool success,
     if (success) {
         QFile jsonFile(localFile);
         if (!jsonFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            qCWarning(FirmwareUpgradeLog) << "Unable to open github px4 releases json file" << localFile << jsonFile.errorString();
+            qCWarning(FirmwareUpgradeControllerLog) << "Unable to open github px4 releases json file" << localFile << jsonFile.errorString();
             return;
         }
         QByteArray bytes = jsonFile.readAll();
@@ -607,13 +650,13 @@ void FirmwareUpgradeController::_px4ReleasesGithubDownloadComplete(bool success,
         QJsonParseError jsonParseError;
         QJsonDocument doc = QJsonDocument::fromJson(bytes, &jsonParseError);
         if (jsonParseError.error != QJsonParseError::NoError) {
-            qCWarning(FirmwareUpgradeLog) <<  "Unable to open px4 releases json document" << localFile << jsonParseError.errorString();
+            qCWarning(FirmwareUpgradeControllerLog) <<  "Unable to open px4 releases json document" << localFile << jsonParseError.errorString();
             return;
         }
 
         // Json should be an array of release objects
         if (!doc.isArray()) {
-            qCWarning(FirmwareUpgradeLog) <<  "px4 releases json document is not an array" << localFile;
+            qCWarning(FirmwareUpgradeControllerLog) <<  "px4 releases json document is not an array" << localFile;
             return;
         }
         QJsonArray releases = doc.array();
@@ -627,24 +670,24 @@ void FirmwareUpgradeController::_px4ReleasesGithubDownloadComplete(bool success,
             if (!foundStable && !release["prerelease"].toBool()) {
                 _px4StableVersion = release["name"].toString();
                 emit px4StableVersionChanged(_px4StableVersion);
-                qCDebug(FirmwareUpgradeLog()) << "Found px4 stable version" << _px4StableVersion;
+                qCDebug(FirmwareUpgradeControllerLog()) << "Found px4 stable version" << _px4StableVersion;
                 foundStable = true;
             } else if (!foundBeta && release["prerelease"].toBool()) {
                 _px4BetaVersion = release["name"].toString();
                 emit px4StableVersionChanged(_px4BetaVersion);
-                qCDebug(FirmwareUpgradeLog()) << "Found px4 beta version" << _px4BetaVersion;
+                qCDebug(FirmwareUpgradeControllerLog()) << "Found px4 beta version" << _px4BetaVersion;
                 foundBeta = true;
             }
         }
 
         if (!foundStable) {
-            qCDebug(FirmwareUpgradeLog()) << "Unable to find px4 stable version" << localFile;
+            qCDebug(FirmwareUpgradeControllerLog()) << "Unable to find px4 stable version" << localFile;
         }
         if (!foundBeta) {
-            qCDebug(FirmwareUpgradeLog()) << "Unable to find px4 beta version" << localFile;
+            qCDebug(FirmwareUpgradeControllerLog()) << "Unable to find px4 beta version" << localFile;
         }
     } else if (!errorMsg.isEmpty()) {
-        qCWarning(FirmwareUpgradeLog) << "PX4 releases github download failed" << errorMsg;
+        qCWarning(FirmwareUpgradeControllerLog) << "PX4 releases github download failed" << errorMsg;
     }
 }
 
@@ -659,7 +702,7 @@ void FirmwareUpgradeController::_downloadArduPilotManifest(void)
     // Use autoDecompress to stream-decompress directly during download
     downloader->setAutoDecompress(true);
     if (!downloader->start(QStringLiteral("https://firmware.ardupilot.org/manifest.json.gz"))) {
-        qCWarning(FirmwareUpgradeLog) << "ArduPilot Manifest download did not start:" << downloader->errorString();
+        qCWarning(FirmwareUpgradeControllerLog) << "ArduPilot Manifest download did not start:" << downloader->errorString();
         downloader->deleteLater();
         _downloadingFirmwareList = false;
         emit downloadingFirmwareListChanged(false);
@@ -676,13 +719,13 @@ void FirmwareUpgradeController::_ardupilotManifestDownloadComplete(bool success,
     };
 
     if (success) {
-        qCDebug(FirmwareUpgradeLog) << "_ardupilotManifestDownloadFinished" << localFile;
+        qCDebug(FirmwareUpgradeControllerLog) << "_ardupilotManifestDownloadFinished" << localFile;
 
         // localFile is already decompressed (autoDecompress=true streams directly to .json)
         QString         errorString;
         QJsonDocument   doc;
         if (!JsonParsing::isJsonFile(localFile, doc, errorString)) {
-            qCWarning(FirmwareUpgradeLog) << "Json file read failed" << errorString;
+            qCWarning(FirmwareUpgradeControllerLog) << "Json file read failed" << errorString;
             clearDownloadState();
             return;
         }
@@ -740,7 +783,7 @@ void FirmwareUpgradeController::_ardupilotManifestDownloadComplete(bool success,
 
         clearDownloadState();
     } else if (!errorMsg.isEmpty()) {
-        qCWarning(FirmwareUpgradeLog) << "ArduPilot Manifest download failed" << errorMsg;
+        qCWarning(FirmwareUpgradeControllerLog) << "ArduPilot Manifest download failed" << errorMsg;
         clearDownloadState();
     }
 }

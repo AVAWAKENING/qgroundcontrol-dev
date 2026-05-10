@@ -1,7 +1,11 @@
 #include "VideoSettings.h"
 #include "VideoManager.h"
 
+#include "QGCLoggingCategory.h"
+#include <QtCore/QSettings>
 #include <QtCore/QVariantList>
+
+QGC_LOGGING_CATEGORY(VideoSettingsLog, "Settings.VideoSettings")
 
 #ifdef QGC_GST_STREAMING
 #include "GStreamer.h"
@@ -56,6 +60,22 @@ DECLARE_SETTINGGROUP(Video, "Video")
     _nameToMetaDataMap[videoSourceName]->setEnumInfo(videoSourceCookedList, videoSourceList);
 
     _setForceVideoDecodeList();
+
+    // Migrate legacy gpuZeroCopyEnabled (pre-rename) into the new force-CPU semantics.
+    {
+        QSettings settings;
+        settings.beginGroup(settingsGroup);
+        const bool hasLegacy = settings.contains(QStringLiteral("gpuZeroCopyEnabled"));
+        const bool hasNew    = settings.contains(forceCpuVideoPathName);
+        if (hasLegacy) {
+            if (!hasNew) {
+                const bool gpuZeroCopy = settings.value(QStringLiteral("gpuZeroCopyEnabled")).toBool();
+                forceCpuVideoPath()->setRawValue(!gpuZeroCopy);
+            }
+            settings.remove(QStringLiteral("gpuZeroCopyEnabled"));
+        }
+        settings.endGroup();
+    }
 
     // Set default value for videoSource
     _setDefaults();
@@ -121,6 +141,49 @@ DECLARE_SETTINGSFACT_NO_FUNC(VideoSettings, lowLatencyMode)
     return _lowLatencyModeFact;
 }
 
+DECLARE_SETTINGSFACT_NO_FUNC(VideoSettings, forceCpuVideoPath)
+{
+    if (!_forceCpuVideoPathFact) {
+        _forceCpuVideoPathFact = _createSettingsFact(forceCpuVideoPathName);
+
+#if defined(QGC_HAS_ANY_GPU_PATH)
+        _forceCpuVideoPathFact->setUserVisible(kGstEnabled);
+#else
+        _forceCpuVideoPathFact->setUserVisible(false);
+#endif
+    }
+    return _forceCpuVideoPathFact;
+}
+
+// videoConversionElement / disablePixelAspectRatio are read by GStreamer::createVideoSink()
+// at bin construction and passed as construct-only properties — no env-var indirection.
+DECLARE_SETTINGSFACT_NO_FUNC(VideoSettings, videoConversionElement)
+{
+    if (!_videoConversionElementFact) {
+        _videoConversionElementFact = _createSettingsFact(videoConversionElementName);
+        _videoConversionElementFact->setUserVisible(kGstEnabled);
+    }
+    return _videoConversionElementFact;
+}
+
+DECLARE_SETTINGSFACT_NO_FUNC(VideoSettings, disablePixelAspectRatio)
+{
+    if (!_disablePixelAspectRatioFact) {
+        _disablePixelAspectRatioFact = _createSettingsFact(disablePixelAspectRatioName);
+        _disablePixelAspectRatioFact->setUserVisible(kGstEnabled);
+    }
+    return _disablePixelAspectRatioFact;
+}
+
+DECLARE_SETTINGSFACT_NO_FUNC(VideoSettings, frameSmoothingEnabled)
+{
+    if (!_frameSmoothingEnabledFact) {
+        _frameSmoothingEnabledFact = _createSettingsFact(frameSmoothingEnabledName);
+        _frameSmoothingEnabledFact->setUserVisible(kGstEnabled);
+    }
+    return _frameSmoothingEnabledFact;
+}
+
 DECLARE_SETTINGSFACT_NO_FUNC(VideoSettings, rtspTimeout)
 {
     if (!_rtspTimeoutFact) {
@@ -164,7 +227,7 @@ bool VideoSettings::streamConfigured(void)
 {
     //-- First, check if it's autoconfigured
     if(VideoManager::instance()->autoStreamConfigured()) {
-        qCDebug(VideoManagerLog) << "Stream auto configured";
+        qCDebug(VideoSettingsLog) << "Stream auto configured";
         return true;
     }
     //-- Check if it's disabled
@@ -174,37 +237,37 @@ bool VideoSettings::streamConfigured(void)
     }
     //-- If UDP, check for URL
     if(vSource == videoSourceUDPH264 || vSource == videoSourceUDPH265) {
-        qCDebug(VideoManagerLog) << "Testing configuration for UDP Stream:" << udpUrl()->rawValue().toString();
+        qCDebug(VideoSettingsLog) << "Testing configuration for UDP Stream:" << udpUrl()->rawValue().toString();
         return !udpUrl()->rawValue().toString().isEmpty();
     }
     //-- If RTSP, check for URL
     if(vSource == videoSourceRTSP) {
-        qCDebug(VideoManagerLog) << "Testing configuration for RTSP Stream:" << rtspUrl()->rawValue().toString();
+        qCDebug(VideoSettingsLog) << "Testing configuration for RTSP Stream:" << rtspUrl()->rawValue().toString();
         return !rtspUrl()->rawValue().toString().isEmpty();
     }
     //-- If TCP, check for URL
     if(vSource == videoSourceTCP) {
-        qCDebug(VideoManagerLog) << "Testing configuration for TCP Stream:" << tcpUrl()->rawValue().toString();
+        qCDebug(VideoSettingsLog) << "Testing configuration for TCP Stream:" << tcpUrl()->rawValue().toString();
         return !tcpUrl()->rawValue().toString().isEmpty();
     }
     //-- If MPEG-TS, check for URL
     if(vSource == videoSourceMPEGTS) {
-        qCDebug(VideoManagerLog) << "Testing configuration for MPEG-TS Stream:" << udpUrl()->rawValue().toString();
+        qCDebug(VideoSettingsLog) << "Testing configuration for MPEG-TS Stream:" << udpUrl()->rawValue().toString();
         return !udpUrl()->rawValue().toString().isEmpty();
     }
     //-- If Herelink Air unit, good to go
     if(vSource == videoSourceHerelinkAirUnit) {
-        qCDebug(VideoManagerLog) << "Stream configured for Herelink Air Unit";
+        qCDebug(VideoSettingsLog) << "Stream configured for Herelink Air Unit";
         return true;
     }
     //-- If Herelink Hotspot, good to go
     if(vSource == videoSourceHerelinkHotspot) {
-        qCDebug(VideoManagerLog) << "Stream configured for Herelink Hotspot";
+        qCDebug(VideoSettingsLog) << "Stream configured for Herelink Hotspot";
         return true;
     }
 #ifndef QGC_DISABLE_UVC
     if (UVCReceiver::enabled() && UVCReceiver::deviceExists(vSource)) {
-        qCDebug(VideoManagerLog) << "Stream configured for UVC";
+        qCDebug(VideoSettingsLog) << "Stream configured for UVC";
         return true;
     }
 #endif
