@@ -331,24 +331,26 @@ bool VehicleLinkManager::_updatePrimaryLink()
         return false;
     }
 
-    if (primaryLink && primaryLink->linkConfiguration()->isHighLatency()) {
-        _vehicle->sendMavCommand(
-            MAV_COMP_ID_AUTOPILOT1,
-            MAV_CMD_CONTROL_HIGH_LATENCY,
-            true,
-            0 // Stop transmission on this link
-        );
-    }
+    // Disabled: PX4 handles high latency mode internally
+    // if (primaryLink && primaryLink->linkConfiguration()->isHighLatency()) {
+    //     _vehicle->sendMavCommand(
+    //         MAV_COMP_ID_AUTOPILOT1,
+    //         MAV_CMD_CONTROL_HIGH_LATENCY,
+    //         true,
+    //         0 // Stop transmission on this link
+    //     );
+    // }
 
     _primaryLink = bestActivePrimaryLink;
     emit primaryLinkChanged();
 
-    if (bestActivePrimaryLink && bestActivePrimaryLink->linkConfiguration()->isHighLatency()) {
-        _vehicle->sendMavCommand(MAV_COMP_ID_AUTOPILOT1,
-                       MAV_CMD_CONTROL_HIGH_LATENCY,
-                       true,
-                       1); // Start transmission on this link
-    }
+    // Disabled: PX4 handles high latency mode internally
+    // if (bestActivePrimaryLink && bestActivePrimaryLink->linkConfiguration()->isHighLatency()) {
+    //     _vehicle->sendMavCommand(MAV_COMP_ID_AUTOPILOT1,
+    //                    MAV_CMD_CONTROL_HIGH_LATENCY,
+    //                    true,
+    //                    1); // Start transmission on this link
+    // }
 
     return true;
 }
