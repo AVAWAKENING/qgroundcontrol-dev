@@ -1,5 +1,7 @@
 target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
+        DataForwardingSender.cc
+        DataForwardingSender.h
         LinkConfiguration.cc
         LinkConfiguration.h
         LinkInterface.cc

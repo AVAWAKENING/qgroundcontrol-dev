@@ -102,7 +102,7 @@ Rectangle {
     QGCButton {
         id:                     gcsPositionButton
         anchors.rightMargin:    ScreenTools.defaultFontPixelWidth / 2
-        anchors.right:          parent.right
+        anchors.right:          dataForwardingButton.left
         anchors.verticalCenter: parent.verticalCenter
         text:                   qsTr("GCS坐标")
         onClicked:              {
@@ -135,7 +135,7 @@ Rectangle {
                 }
 
                 MouseArea {
-                    id: popupDragArea
+                    id: gcsPositionDragArea
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -167,6 +167,76 @@ Rectangle {
         }
     }
 
+    QGCButton {
+        id:                     dataForwardingButton
+        anchors.rightMargin:    ScreenTools.defaultFontPixelWidth / 2
+        anchors.right:          parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        text:                   qsTr("数据转发")
+        onClicked:              dataForwardingSettingsDialogComponent.createObject(mainWindow).open()
+
+        property var dataForwardingSettingsDialogComponent: Component {
+            Popup {
+                id:                 dataForwardingPopup
+                parent:             Overlay.overlay
+                modal:              false
+                focus:              true
+                closePolicy:        Popup.CloseOnEscape
+                x:                  (mainWindow.width - width) / 2
+                y:                  (mainWindow.height - height) / 2
+                width:              dataForwardingSettings.implicitWidth
+                height:             dataForwardingSettings.implicitHeight
+
+                background: Rectangle {
+                    color: "transparent"
+                }
+
+                contentItem: DataForwardingSettings {
+                    id: dataForwardingSettings
+                    popupParent: dataForwardingPopup
+                    onCloseClicked: dataForwardingPopup.close()
+                }
+
+                MouseArea {
+                    id: dataForwardingDragArea
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: ScreenTools.defaultFontPixelHeight * 2.5
+                    cursorShape: Qt.SizeAllCursor
+                    preventStealing: true
+
+                    property real lastX: 0
+                    property real lastY: 0
+
+                    onPressed: {
+                        lastX = mouseX
+                        lastY = mouseY
+                    }
+
+                    onPositionChanged: {
+                        if (pressed) {
+                            dataForwardingPopup.x += mouseX - lastX
+                            dataForwardingPopup.y += mouseY - lastY
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.topMargin: ScreenTools.defaultFontPixelHeight * 0.3
+                    width: ScreenTools.defaultFontPixelWidth * 20
+                    height: ScreenTools.defaultFontPixelHeight * 0.4
+                    color: "white"
+                    radius: height / 2
+                    opacity: 0.7
+                    z: -1
+                }
+            }
+        }
+    }
+
     //-------------------------------------------------------------------------
     //-- Branding Logo
     Image {
@@ -174,7 +244,7 @@ Rectangle {
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom
         anchors.margins:        ScreenTools.defaultFontPixelHeight * 0.66
-        visible:                _activeVehicle && !_communicationLost && x > (toolsFlickable.x + toolsFlickable.contentWidth + ScreenTools.defaultFontPixelWidth)
+        visible:                false
         fillMode:               Image.PreserveAspectFit
         source:                 _outdoorPalette ? _brandImageOutdoor : _brandImageIndoor
         mipmap:                 true
