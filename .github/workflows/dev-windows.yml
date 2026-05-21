@@ -1,21 +1,6 @@
 name: Windows Dev Branch
 
 on:
-  push:
-    branches:
-      - myproject/BLACK-BOX
-      - mytest/BLACK-BOX
-    paths-ignore:
-      - 'docs/**'
-  pull_request:
-    branches:
-      - myproject/BLACK-BOX
-    paths:
-      - '.github/workflows/dev-windows.yml'
-      - 'deploy/windows/**'
-      - 'src/**'
-      - 'CMakeLists.txt'
-      - 'cmake/**'
   workflow_dispatch:
     inputs:
       build_type:
