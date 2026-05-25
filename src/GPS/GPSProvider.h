@@ -36,7 +36,8 @@ public:
         u_blox,
         trimble,
         septentrio,
-        femto
+        femto,
+        m20d
     };
 
     struct rtk_data_s {

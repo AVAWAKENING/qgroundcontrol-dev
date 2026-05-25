@@ -17,6 +17,7 @@
 #include <femtomes.h>
 #include <sbf.h>
 #include <ubx.h>
+#include <m20d.h>
 
 #ifdef Q_OS_ANDROID
 #include "qserialport.h"
@@ -227,6 +228,10 @@ GPSBaseStationSupport *GPSProvider::_connectGPS()
         gpsDriver = new GPSDriverFemto(&_callbackEntry, this, &_sensorGps, &_satelliteInfo);
         baudrate = 0;
         break;
+    case GPSType::m20d:
+        gpsDriver = new GPSDriverM20D(&_callbackEntry, this, &_sensorGps, &_satelliteInfo);
+        baudrate = 0;
+        break;
     default:
         // GPSDriverEmlidReach, GPSDriverMTK, GPSDriverNMEA
         qCWarning(GPSProviderLog) << "Unsupported GPS Type:" << static_cast<int>(_type);
@@ -239,7 +244,12 @@ GPSBaseStationSupport *GPSProvider::_connectGPS()
         gpsDriver->setBasePosition(_rtkData.fixedBaseLatitude, _rtkData.fixedBaseLongitude, _rtkData.fixedBaseAltitudeMeters, _rtkData.fixedBaseAccuracyMeters * 1000.0f);
     }
 
-    _gpsConfig.output_mode = GPSHelper::OutputMode::RTCM;
+    if (_type == GPSType::m20d) {
+        // M20D outputs both GPS and RTCM data
+        _gpsConfig.output_mode = GPSHelper::OutputMode::GPSAndRTCM;
+    } else {
+        _gpsConfig.output_mode = GPSHelper::OutputMode::RTCM;
+    }
 
     if (gpsDriver->configure(baudrate, _gpsConfig) != 0) {
         return nullptr;
