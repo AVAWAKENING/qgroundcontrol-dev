@@ -184,7 +184,7 @@ void QGCPositionManager::setManualPositionEnabled(bool enabled)
     if (_manualPositionEnabled != enabled) {
         _manualPositionEnabled = enabled;
         emit manualPositionEnabledChanged(enabled);
-        
+
         if (enabled && _manualPosition.isValid()) {
             _setGCSPosition(_manualPosition);
         }
@@ -196,10 +196,22 @@ void QGCPositionManager::setManualPosition(const QGeoCoordinate &position)
     if (_manualPosition != position) {
         _manualPosition = position;
         emit manualPositionChanged(position);
-        
+
         if (_manualPositionEnabled && position.isValid()) {
             _setGCSPosition(position);
         }
+    }
+}
+
+void QGCPositionManager::setRtkGpsPosition(double latitude, double longitude, double altitude)
+{
+    if (_manualPositionEnabled) {
+        return;
+    }
+
+    QGeoCoordinate rtkPosition(latitude, longitude, altitude);
+    if (rtkPosition.isValid()) {
+        _setGCSPosition(rtkPosition);
     }
 }
 

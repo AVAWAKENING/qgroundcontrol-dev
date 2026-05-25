@@ -14,6 +14,7 @@
 #include "RTCMMavlink.h"
 #include "RTKSettings.h"
 #include "SettingsManager.h"
+#include "PositionManager.h"
 
 QGC_LOGGING_CATEGORY(GPSRtkLog, "qgc.gps.gpsrtk")
 
@@ -154,4 +155,6 @@ void GPSRtk::_sensorGnssRelativeUpdate(const sensor_gnss_relative_s &msg)
 void GPSRtk::_sensorGpsUpdate(const sensor_gps_s &msg)
 {
     qCDebug(GPSRtkLog) << Q_FUNC_INFO << QStringLiteral("alt=%1, long=%2, lat=%3").arg(msg.altitude_msl_m).arg(msg.longitude_deg).arg(msg.latitude_deg);
+
+    QGCPositionManager::instance()->setRtkGpsPosition(msg.latitude_deg, msg.longitude_deg, msg.altitude_msl_m);
 }

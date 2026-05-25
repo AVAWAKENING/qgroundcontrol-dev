@@ -54,6 +54,7 @@ public:
     void setNmeaSourceDevice(QIODevice *device);
     void setManualPositionEnabled(bool enabled);
     void setManualPosition(const QGeoCoordinate &position);
+    void setRtkGpsPosition(double latitude, double longitude, double altitude);
 
 signals:
     void gcsPositionChanged(QGeoCoordinate gcsPosition);
