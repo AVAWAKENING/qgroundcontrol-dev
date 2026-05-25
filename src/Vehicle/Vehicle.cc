@@ -3744,12 +3744,11 @@ void Vehicle::_doSetHomeTerrainReceived(bool success, QList<double> heights)
 {
     if (success) {
         double terrainAltitude = heights[0];
-        // Coord and terrain alt sanity check
         if (_doSetHomeCoordinate.isValid() && terrainAltitude <= SET_HOME_TERRAIN_ALT_MAX && terrainAltitude >= SET_HOME_TERRAIN_ALT_MIN) {
             sendMavCommand(
                         defaultComponentId(),
                         MAV_CMD_DO_SET_HOME,
-                        true, // show error if fails
+                        true,
                         0,
                         0,
                         0,
@@ -3766,9 +3765,36 @@ void Vehicle::_doSetHomeTerrainReceived(bool success, QList<double> heights)
     } else {
         qgcApp()->showAppMessage(tr("Set Home failed, terrain data not available for selected coordinate"));
     }
-    // Clean up
     _currentDoSetHomeTerrainAtCoordinateQuery = nullptr;
-    _doSetHomeCoordinate = QGeoCoordinate(); // So isValid() will no longer return true, for extra safety
+    _doSetHomeCoordinate = QGeoCoordinate();
+}
+
+void Vehicle::_doSetHomeToCoordinateAckHandler(void* resultHandlerData, int compId, const mavlink_command_ack_t& ack, MavCmdResultFailureCode_t failureCode)
+{
+    Vehicle* vehicle = static_cast<Vehicle*>(resultHandlerData);
+    bool success = (ack.result == MAV_RESULT_ACCEPTED) && (failureCode == MavCmdResultCommandResultOnly);
+    emit vehicle->setHomeResult(success);
+}
+
+void Vehicle::doSetHomeToCoordinate(const QGeoCoordinate& coord)
+{
+    if (coord.isValid()) {
+        MavCmdAckHandlerInfo_t handlerInfo = {};
+        handlerInfo.resultHandler = _doSetHomeToCoordinateAckHandler;
+        handlerInfo.resultHandlerData = this;
+
+        sendMavCommandWithHandler(
+            &handlerInfo,
+            defaultComponentId(),
+            MAV_CMD_DO_SET_HOME,
+            0,
+            0,
+            0,
+            static_cast<float>(qQNaN()),
+            static_cast<float>(coord.latitude()),
+            static_cast<float>(coord.longitude()),
+            static_cast<float>(coord.altitude()));
+    }
 }
 
 void Vehicle::_updateAltAboveTerrain()

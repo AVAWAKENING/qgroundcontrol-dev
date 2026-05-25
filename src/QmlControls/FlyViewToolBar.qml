@@ -92,11 +92,33 @@ Rectangle {
         anchors.bottomMargin:   1
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom
-        anchors.right:          gcsPositionButton.left
+        anchors.right:          setHomeButton.left
         contentWidth:           toolIndicators.width
         flickableDirection:     Flickable.HorizontalFlick
 
         FlyViewToolBarIndicators { id: toolIndicators }
+    }
+
+    QGCButton {
+        id:                     setHomeButton
+        anchors.rightMargin:    ScreenTools.defaultFontPixelWidth / 2
+        anchors.right:          gcsPositionButton.left
+        anchors.verticalCenter: parent.verticalCenter
+        text:                   qsTr("设置HOME")
+        onClicked:              {
+            var gcsPos = QGroundControl.qgcPositionManger.gcsPosition
+            if (!gcsPos.isValid) {
+                console.log("GCS位置无效，无法设置HOME点")
+                return
+            }
+            var vehicles = QGroundControl.multiVehicleManager.vehicles
+            for (var i = 0; i < vehicles.count; i++) {
+                var vehicle = vehicles.get(i)
+                if (vehicle) {
+                    vehicle.doSetHomeToCoordinate(gcsPos)
+                }
+            }
+        }
     }
 
     QGCButton {
