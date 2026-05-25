@@ -47,7 +47,7 @@ Rectangle {
 
     Rectangle {
         anchors.fill: viewButtonRow
-        
+
         gradient: Gradient {
             orientation: Gradient.Horizontal
             GradientStop { position: 0;                                     color: _mainStatusBGColor }
@@ -92,11 +92,79 @@ Rectangle {
         anchors.bottomMargin:   1
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom
-        anchors.right:          parent.right
+        anchors.right:          gcsPositionButton.left
         contentWidth:           toolIndicators.width
         flickableDirection:     Flickable.HorizontalFlick
 
         FlyViewToolBarIndicators { id: toolIndicators }
+    }
+
+    QGCButton {
+        id:                     gcsPositionButton
+        anchors.rightMargin:    ScreenTools.defaultFontPixelWidth / 2
+        anchors.right:          parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        text:                   qsTr("GCS坐标")
+        onClicked:              {
+            if (!gcsPositionPopup) {
+                gcsPositionPopup = gcsPositionSettingsDialogComponent.createObject(mainWindow)
+            }
+            gcsPositionPopup.open()
+        }
+
+        property var gcsPositionPopup: null
+
+        property var gcsPositionSettingsDialogComponent: Component {
+            Popup {
+                id:                 gcsPositionPopupInternal
+                parent:             Overlay.overlay
+                modal:              false
+                focus:              true
+                closePolicy:        Popup.CloseOnEscape
+                x:                  (mainWindow.width - width) / 2
+                y:                  (mainWindow.height - height) / 2
+                width:              gcsPositionSettings.implicitWidth
+                height:             gcsPositionSettings.implicitHeight
+
+                background: Rectangle { color: "transparent" }
+
+                contentItem: GcsPositionSettings {
+                    id: gcsPositionSettings
+                    popupParent: gcsPositionPopupInternal
+                    onCloseClicked: gcsPositionPopupInternal.close()
+                }
+
+                MouseArea {
+                    id: popupDragArea
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.rightMargin: ScreenTools.defaultFontPixelWidth * 10
+                    height: ScreenTools.defaultFontPixelHeight * 2.8
+                    cursorShape: Qt.SizeAllCursor
+                    preventStealing: true
+
+                    property real lastX: 0
+                    property real lastY: 0
+
+                    onPressed: {
+                        lastX = mouseX
+                        lastY = mouseY
+                    }
+
+                    onPositionChanged: {
+                        if (pressed) {
+                            gcsPositionPopupInternal.x += mouseX - lastX
+                            gcsPositionPopupInternal.y += mouseY - lastY
+                        }
+                    }
+                }
+
+                onClosed: {
+                    gcsPositionButton.gcsPositionPopup = null
+                }
+            }
+        }
     }
 
     //-------------------------------------------------------------------------

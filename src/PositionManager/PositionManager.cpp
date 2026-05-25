@@ -120,6 +120,11 @@ void QGCPositionManager::setNmeaSourceDevice(QIODevice *device)
 
 void QGCPositionManager::_positionUpdated(const QGeoPositionInfo &update)
 {
+    if (_manualPositionEnabled && _manualPosition.isValid()) {
+        _setGCSPosition(_manualPosition);
+        return;
+    }
+
     _geoPositionInfo = update;
 
     QGeoCoordinate newGCSPosition(_gcsPosition);
@@ -171,6 +176,30 @@ void QGCPositionManager::_setGCSPosition(const QGeoCoordinate& newGCSPosition)
     if (newGCSPosition != _gcsPosition) {
         _gcsPosition = newGCSPosition;
         emit gcsPositionChanged(_gcsPosition);
+    }
+}
+
+void QGCPositionManager::setManualPositionEnabled(bool enabled)
+{
+    if (_manualPositionEnabled != enabled) {
+        _manualPositionEnabled = enabled;
+        emit manualPositionEnabledChanged(enabled);
+        
+        if (enabled && _manualPosition.isValid()) {
+            _setGCSPosition(_manualPosition);
+        }
+    }
+}
+
+void QGCPositionManager::setManualPosition(const QGeoCoordinate &position)
+{
+    if (_manualPosition != position) {
+        _manualPosition = position;
+        emit manualPositionChanged(position);
+        
+        if (_manualPositionEnabled && position.isValid()) {
+            _setGCSPosition(position);
+        }
     }
 }
 

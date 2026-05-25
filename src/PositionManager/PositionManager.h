@@ -1,4 +1,4 @@
-﻿/****************************************************************************
+/****************************************************************************
  *
  * (c) 2009-2024 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
  *
@@ -30,6 +30,8 @@ class QGCPositionManager : public QObject
     Q_PROPERTY(QGeoCoordinate gcsPosition                   READ gcsPosition                    NOTIFY gcsPositionChanged)
     Q_PROPERTY(qreal          gcsHeading                    READ gcsHeading                     NOTIFY gcsHeadingChanged)
     Q_PROPERTY(qreal          gcsPositionHorizontalAccuracy READ gcsPositionHorizontalAccuracy  NOTIFY gcsPositionHorizontalAccuracyChanged)
+    Q_PROPERTY(bool           manualPositionEnabled         READ manualPositionEnabled          WRITE setManualPositionEnabled      NOTIFY manualPositionEnabledChanged)
+    Q_PROPERTY(QGeoCoordinate manualPosition                READ manualPosition                 WRITE setManualPosition             NOTIFY manualPositionChanged)
 
 public:
     QGCPositionManager(QObject *parent = nullptr);
@@ -46,14 +48,20 @@ public:
     qreal gcsPositionHorizontalAccuracy() const { return _gcsPositionHorizontalAccuracy; }
     QGeoPositionInfo geoPositionInfo() const { return _geoPositionInfo; }
     int updateInterval() const { return _updateInterval; }
+    bool manualPositionEnabled() const { return _manualPositionEnabled; }
+    QGeoCoordinate manualPosition() const { return _manualPosition; }
 
     void setNmeaSourceDevice(QIODevice *device);
+    void setManualPositionEnabled(bool enabled);
+    void setManualPosition(const QGeoCoordinate &position);
 
 signals:
     void gcsPositionChanged(QGeoCoordinate gcsPosition);
     void gcsHeadingChanged(qreal gcsHeading);
     void positionInfoUpdated(QGeoPositionInfo update);
     void gcsPositionHorizontalAccuracyChanged(qreal gcsPositionHorizontalAccuracy);
+    void manualPositionEnabledChanged(bool enabled);
+    void manualPositionChanged(QGeoCoordinate position);
 
 private slots:
     void _positionUpdated(const QGeoPositionInfo &update);
@@ -79,11 +87,13 @@ private:
 
     QGeoPositionInfo _geoPositionInfo;
     QGeoCoordinate _gcsPosition;
+    QGeoCoordinate _manualPosition;
     qreal _gcsHeading = qQNaN();
     qreal _gcsPositionHorizontalAccuracy = std::numeric_limits<qreal>::infinity();
     qreal _gcsPositionVerticalAccuracy = std::numeric_limits<qreal>::infinity();
     qreal _gcsPositionAccuracy = std::numeric_limits<qreal>::infinity();
     qreal _gcsDirectionAccuracy = std::numeric_limits<qreal>::infinity();
+    bool _manualPositionEnabled = false;
 
     QGeoPositionInfoSource *_currentSource = nullptr;
     QGeoPositionInfoSource *_defaultSource = nullptr;
