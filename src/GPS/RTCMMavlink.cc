@@ -12,6 +12,7 @@
 #include "MultiVehicleManager.h"
 #include "QGCLoggingCategory.h"
 #include "Vehicle.h"
+#include <QtCore/QSet>
 
 QGC_LOGGING_CATEGORY(RTCMMavlinkLog, "qgc.gps.rtcmmavlink")
 
@@ -66,21 +67,46 @@ void RTCMMavlink::RTCMDataUpdate(QByteArrayView data)
 void RTCMMavlink::_sendMessageToVehicle(const mavlink_gps_rtcm_data_t &data)
 {
     QmlObjectListModel* const vehicles = MultiVehicleManager::instance()->vehicles();
-    for (qsizetype i = 0; i < vehicles->count(); i++) {
-        Vehicle* const vehicle = qobject_cast<Vehicle*>(vehicles->get(i));
-        const SharedLinkInterfacePtr sharedLink = vehicle->vehicleLinkManager()->primaryLink().lock();
-        if (sharedLink) {
-            mavlink_message_t message;
-            (void) mavlink_msg_gps_rtcm_data_encode_chan(
-                MAVLinkProtocol::instance()->getSystemId(),
-                MAVLinkProtocol::getComponentId(),
-                sharedLink->mavlinkChannel(),
-                &message,
-                &data
-            );
-            (void) vehicle->sendMessageOnLinkThreadSafe(sharedLink.get(), message);
-        }
+    const qsizetype vehicleCount = vehicles->count();
+    if (vehicleCount == 0) {
+        return;
     }
+
+    QSet<LinkInterface*> seenLinks;
+
+    for (qsizetype i = 0; i < vehicleCount; i++) {
+        Vehicle* const vehicle = qobject_cast<Vehicle*>(vehicles->get(i));
+        if (!vehicle || vehicle->isBeingDeleted()) {
+            continue;
+        }
+
+        const SharedLinkInterfacePtr sharedLink = vehicle->vehicleLinkManager()->primaryLink().lock();
+        if (!sharedLink) {
+            continue;
+        }
+
+        LinkInterface* const linkPtr = sharedLink.get();
+        if (seenLinks.contains(linkPtr)) {
+            continue;
+        }
+
+        seenLinks.insert(linkPtr);
+
+        mavlink_message_t message;
+        (void) mavlink_msg_gps_rtcm_data_encode_chan(
+            MAVLinkProtocol::instance()->getSystemId(),
+            MAVLinkProtocol::getComponentId(),
+            sharedLink->mavlinkChannel(),
+            &message,
+            &data
+        );
+        (void) vehicle->sendMessageOnLinkThreadSafe(sharedLink.get(), message);
+    }
+
+    qCDebug(RTCMMavlinkLog) << QStringLiteral("RTCM: vehicles=%1, uniqueLinks=%2, savedTx=%3%")
+        .arg(vehicleCount)
+        .arg(seenLinks.size())
+        .arg(vehicleCount > 0 ? (vehicleCount - seenLinks.size()) * 100 / vehicleCount : 0);
 }
 
 void RTCMMavlink::_calculateBandwith(qsizetype bytes)

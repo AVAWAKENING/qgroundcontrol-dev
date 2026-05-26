@@ -381,6 +381,8 @@ Vehicle::~Vehicle()
 
 void Vehicle::prepareDelete()
 {
+    _beingDeleted = true;
+
     // Clean up camera manager to stop all timers and prevent crashes during destruction
     if(_cameraManager) {
         // because of _cameraManager QML bindings check for nullptr won't work in the binding pipeline

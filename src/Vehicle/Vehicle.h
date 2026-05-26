@@ -808,6 +808,7 @@ public:
     float       mavlinkLossPercent      () const{ return _mavlinkLossPercent; }      /// Running loss rate
 
     bool        isROIEnabled            () const{ return _isROIEnabled; }
+    bool        isBeingDeleted          () const{ return _beingDeleted; }
 
     CheckList   checkListState          () { return _checkListState; }
     void        setCheckListState       (CheckList cl)  { _checkListState = cl; emit checkListStateChanged(); }
@@ -1303,6 +1304,7 @@ private:
     // We use this to limit above terrain altitude queries based on distance and altitude change
     QGeoCoordinate              _altitudeAboveTerrLastCoord;
     float                       _altitudeAboveTerrLastRelAlt = qQNaN();
+    bool                        _beingDeleted = false;
 
 public:
     int32_t getMessageRate(uint8_t compId, uint16_t msgId);
