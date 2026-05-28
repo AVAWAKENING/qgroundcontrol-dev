@@ -195,11 +195,18 @@ Rectangle {
         anchors.right:          parent.right
         anchors.verticalCenter: parent.verticalCenter
         text:                   qsTr("数据转发")
-        onClicked:              dataForwardingSettingsDialogComponent.createObject(mainWindow).open()
+        onClicked:              {
+            if (!dataForwardingPopup) {
+                dataForwardingPopup = dataForwardingSettingsDialogComponent.createObject(mainWindow)
+            }
+            dataForwardingPopup.open()
+        }
+
+        property var dataForwardingPopup: null
 
         property var dataForwardingSettingsDialogComponent: Component {
             Popup {
-                id:                 dataForwardingPopup
+                id:                 dataForwardingPopupInternal
                 parent:             Overlay.overlay
                 modal:              false
                 focus:              true
@@ -215,8 +222,8 @@ Rectangle {
 
                 contentItem: DataForwardingSettings {
                     id: dataForwardingSettings
-                    popupParent: dataForwardingPopup
-                    onCloseClicked: dataForwardingPopup.close()
+                    popupParent: dataForwardingPopupInternal
+                    onCloseClicked: dataForwardingPopupInternal.close()
                 }
 
                 MouseArea {
@@ -238,8 +245,8 @@ Rectangle {
 
                     onPositionChanged: {
                         if (pressed) {
-                            dataForwardingPopup.x += mouseX - lastX
-                            dataForwardingPopup.y += mouseY - lastY
+                            dataForwardingPopupInternal.x += mouseX - lastX
+                            dataForwardingPopupInternal.y += mouseY - lastY
                         }
                     }
                 }
@@ -254,6 +261,10 @@ Rectangle {
                     radius: height / 2
                     opacity: 0.7
                     z: -1
+                }
+
+                onClosed: {
+                    dataForwardingButton.dataForwardingPopup = null
                 }
             }
         }
