@@ -1304,6 +1304,7 @@ EventHandler& Vehicle::_eventHandler(uint8_t compid)
         // add new component
 
         auto sendRequestEventMessageCB = [this](const mavlink_request_event_t& msg) {
+            return;
             SharedLinkInterfacePtr sharedLink = vehicleLinkManager()->primaryLink().lock();
             if (sharedLink) {
                 mavlink_message_t message;
