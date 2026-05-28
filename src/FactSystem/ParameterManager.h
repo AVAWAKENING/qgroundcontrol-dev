@@ -60,6 +60,9 @@ public:
     /// Re-request the full set of parameters from the autopilot
     void refreshAllParameters(uint8_t componentID = MAV_COMP_ID_ALL);
 
+    /// Mark parameters as ready without downloading from vehicle
+    void setParametersReadyWithoutDownload();
+
     /// Request a refresh on the specific parameter
     void refreshParameter(int componentId, const QString &paramName);
 

@@ -447,6 +447,17 @@ void ParameterManager::_ftpDownloadProgress(float progress)
     }
 }
 
+void ParameterManager::setParametersReadyWithoutDownload()
+{
+    qCDebug(ParameterManagerLog) << "Marking parameters as ready without download";
+    _parametersReady = true;
+    _missingParameters = true;
+    _initialLoadComplete = true;
+    _waitingForDefaultComponent = false;
+    emit parametersReadyChanged(_parametersReady);
+    emit missingParametersChanged(_missingParameters);
+}
+
 void ParameterManager::refreshAllParameters(uint8_t componentId)
 {
     const SharedLinkInterfacePtr sharedLink = _vehicle->vehicleLinkManager()->primaryLink().lock();
