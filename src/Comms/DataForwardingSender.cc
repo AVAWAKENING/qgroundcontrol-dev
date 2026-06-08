@@ -456,7 +456,9 @@ QByteArray DataForwardingWorker::_buildPacket()
                     v_ground = static_cast<int32_t>(groundSpeedVal * 1024.0);
                     v_up = static_cast<int32_t>(climbRateVal * 1024.0);
                     v_south = static_cast<int32_t>(-vxVal * 1024.0);
-                    v = static_cast<int32_t>(qSqrt(v_ground*v_ground + v_up*v_up + v_south*v_south));
+                    // v = static_cast<int32_t>(qSqrt(v_ground*v_ground + v_up*v_up + v_south*v_south));
+                    // 根据前方要求，v 应该是地面速度
+                    v = static_cast<int32_t>(groundSpeedVal * 1024.0);
                 }
             }
 
