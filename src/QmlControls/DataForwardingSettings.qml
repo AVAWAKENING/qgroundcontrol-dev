@@ -45,7 +45,9 @@ Rectangle {
         property string radarId:        ""
         property string originLat:      ""
         property string originLon:      ""
-        property string originAlt:      ""
+        property string originAltEll:      ""
+        property string originAltitude:     ""
+        property string originGeoidHeight:  ""
         property bool   forwardingEnabled: false
     }
 
@@ -217,11 +219,11 @@ Rectangle {
                             settings.forwardingEnabled = true
                             var originLat = parseFloat(settings.originLat) || 0.0
                             var originLon = parseFloat(settings.originLon) || 0.0
-                            var originAlt = parseFloat(settings.originAlt) || 0.0
+                            var originAltEll = parseFloat(settings.originAltEll) || 0.0
                             var freq = parseFloat(settings.frequency) || 1.0
                             var radarId = parseInt(settings.radarId) || 0
                             var deviceId = parseInt(settings.zdNumber) || 0
-                            DataForwardingSender.startForwarding(settings.ipAddress, parseInt(settings.portNumber), freq, originLat, originLon, originAlt, radarId, deviceId)
+                            DataForwardingSender.startForwarding(settings.ipAddress, parseInt(settings.portNumber), freq, originLat, originLon, originAltEll, radarId, deviceId)
                         } else {
                             settings.forwardingEnabled = false
                             DataForwardingSender.stopForwarding()
@@ -322,9 +324,44 @@ Rectangle {
                 QGCTextField {
                     id:                 altField
                     Layout.fillWidth:   true
+                    readOnly:           true
+                    text: {
+                        var alt = parseFloat(settings.originAltitude) || 0
+                        var geoid = parseFloat(settings.originGeoidHeight) || 0
+                        return (alt + geoid).toString()
+                    }
+                    enabled:            !settings.forwardingEnabled
+                    opacity:            settings.forwardingEnabled ? 0.7 : 1.0
+                }
+
+                QGCLabel { text: qsTr("原点海拔:") }
+                QGCTextField {
+                    id:                 altitudeField
+                    Layout.fillWidth:   true
                     placeholderText:    qsTr("例如：1046.505")
-                    text:               settings.originAlt
-                    onTextChanged:      settings.originAlt = text
+                    text:               settings.originAltitude
+                    onTextChanged: {
+                        settings.originAltitude = text
+                        var alt = parseFloat(text) || 0
+                        var geoid = parseFloat(settings.originGeoidHeight) || 0
+                        settings.originAltEll = (alt + geoid).toString()
+                    }
+                    enabled:            !settings.forwardingEnabled
+                    opacity:            settings.forwardingEnabled ? 0.7 : 1.0
+                }
+
+                QGCLabel { text: qsTr("原点高程异常:") }
+                QGCTextField {
+                    id:                 geoidHeightField
+                    Layout.fillWidth:   true
+                    placeholderText:    qsTr("例如：-55.1642")
+                    text:               settings.originGeoidHeight
+                    onTextChanged: {
+                        settings.originGeoidHeight = text
+                        var alt = parseFloat(settings.originAltitude) || 0
+                        var geoid = parseFloat(text) || 0
+                        settings.originAltEll = (alt + geoid).toString()
+                    }
                     enabled:            !settings.forwardingEnabled
                     opacity:            settings.forwardingEnabled ? 0.7 : 1.0
                 }
