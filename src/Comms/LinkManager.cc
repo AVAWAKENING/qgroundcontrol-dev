@@ -909,7 +909,7 @@ void LinkManager::_addSerialAutoConnectLink()
 
                 if (pSerialConfig) {
                     qCDebug(LinkManagerLog) << "New auto-connect port added: " << pSerialConfig->name() << portInfo.systemLocation();
-                    pSerialConfig->setBaud((boardType == QGCSerialPortInfo::BoardTypeSiKRadio) ? 57600 : 115200);
+                    pSerialConfig->setBaud(115200);
                     pSerialConfig->setDynamic(true);
                     pSerialConfig->setPortName(portInfo.systemLocation());
                     pSerialConfig->setAutoConnect(true);
