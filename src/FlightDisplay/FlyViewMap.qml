@@ -756,6 +756,14 @@ FlightMap {
     }
 
     onMapClicked: (position) => {
+        // 处理测距功能
+        if (QGroundControl.measureDistanceController.enabled) {
+            position = Qt.point(position.x, position.y)
+            var clickCoord = _root.toCoordinate(position, false /* clipToViewPort */)
+            QGroundControl.measureDistanceController.handleMapClick(clickCoord)
+            return
+        }
+
         if (!globals.guidedControllerFlyView.guidedUIVisible && 
             (globals.guidedControllerFlyView.showGotoLocation || globals.guidedControllerFlyView.showOrbit ||
              globals.guidedControllerFlyView.showROI || globals.guidedControllerFlyView.showSetHome ||
@@ -780,6 +788,110 @@ FlightMap {
         visible:            !ScreenTools.isTinyScreen && QGroundControl.corePlugin.options.flyView.showMapScale && mapControl.pipState.state === mapControl.pipState.windowState
 
         property real centerInset: visible ? parent.height - y : 0
+    }
+
+    // 测距功能的地图可视化
+    // 起点标记
+    MapQuickItem {
+        id:                 measureDistanceStartMarker
+        visible:            QGroundControl.measureDistanceController.enabled && QGroundControl.measureDistanceController.hasValidStart
+        coordinate:         QGroundControl.measureDistanceController.startPoint
+        anchorPoint.x:      sourceItem.width / 2
+        anchorPoint.y:      sourceItem.height / 2
+        z:                  QGroundControl.zOrderMapItems
+
+        sourceItem: Rectangle {
+            width:          ScreenTools.defaultFontPixelHeight * 0.75
+            height:         width
+            radius:         width / 2
+            color:          "#00FF00"
+            border.color:   "#006600"
+            border.width:   2
+            opacity:        0.8
+        }
+    }
+
+    // 终点标记
+    MapQuickItem {
+        id:                 measureDistanceEndMarker
+        visible:            QGroundControl.measureDistanceController.enabled && QGroundControl.measureDistanceController.hasValidEnd
+        coordinate:         QGroundControl.measureDistanceController.endPoint
+        anchorPoint.x:      sourceItem.width / 2
+        anchorPoint.y:      sourceItem.height / 2
+        z:                  QGroundControl.zOrderMapItems
+
+        sourceItem: Rectangle {
+            width:          ScreenTools.defaultFontPixelHeight * 0.75
+            height:         width
+            radius:         width / 2
+            color:          "#e4103eff"
+            border.color:   "#e40e44ff"
+            border.width:   2
+            opacity:        0.8
+        }
+    }
+
+    // 连接起点和终点的线
+    MapPolyline {
+        id:                 measureDistanceLine
+        visible:            QGroundControl.measureDistanceController.enabled &&
+                            QGroundControl.measureDistanceController.hasValidStart &&
+                            QGroundControl.measureDistanceController.hasValidEnd
+        line.width:         3
+        line.color:         "#00FF00"
+        z:                  QGroundControl.zOrderMapItems - 1
+
+        property var _startPoint: QGroundControl.measureDistanceController.startPoint
+        property var _endPoint: QGroundControl.measureDistanceController.endPoint
+
+        on_StartPointChanged: updatePath()
+        on_EndPointChanged: updatePath()
+
+        function updatePath() {
+            if (QGroundControl.measureDistanceController.hasValidStart &&
+                QGroundControl.measureDistanceController.hasValidEnd) {
+                path = [_startPoint, _endPoint]
+            }
+        }
+
+        Component.onCompleted: updatePath()
+    }
+
+    // 距离标签
+    MapQuickItem {
+        id:                 measureDistanceLabel
+        visible:            QGroundControl.measureDistanceController.enabled &&
+                            QGroundControl.measureDistanceController.hasValidStart &&
+                            QGroundControl.measureDistanceController.hasValidEnd
+        coordinate:         QGroundControl.measureDistanceController.endPoint
+        anchorPoint.x:      sourceItem.width / 2
+        anchorPoint.y:      sourceItem.height + ScreenTools.defaultFontPixelHeight * 0.5
+        z:                  QGroundControl.zOrderMapItems
+
+        property var _endPoint: QGroundControl.measureDistanceController.endPoint
+        property real _distance: QGroundControl.measureDistanceController.distance
+
+        on_EndPointChanged: coordinate = _endPoint
+        on_DistanceChanged: distanceLabel.text = QGroundControl.measureDistanceController.distanceString()
+
+        sourceItem: Rectangle {
+            width:          distanceLabel.implicitWidth + ScreenTools.defaultFontPixelWidth * 2
+            height:         distanceLabel.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.5
+            color:          "#FFFFFF"
+            border.color:   "#006600"
+            border.width:   2
+            radius:         ScreenTools.defaultFontPixelWidth / 2
+            opacity:        0.9
+
+            QGCLabel {
+                id:             distanceLabel
+                anchors.centerIn: parent
+                text:           "0.00 m"
+                color:          "#006600"
+                font.bold:      true
+                font.pointSize: ScreenTools.defaultFontPointSize
+            }
+        }
     }
 
 }

@@ -124,17 +124,25 @@ Rectangle {
     QGCButton {
         id:                     gcsPositionButton
         anchors.rightMargin:    ScreenTools.defaultFontPixelWidth / 2
-        anchors.right:          dataForwardingButton.left
+        anchors.right:          commonToolsButton.left
         anchors.verticalCenter: parent.verticalCenter
         text:                   qsTr("GCS坐标")
-        onClicked:              {
-            if (!gcsPositionPopup) {
-                gcsPositionPopup = gcsPositionSettingsDialogComponent.createObject(mainWindow)
-            }
-            gcsPositionPopup.open()
-        }
+        checkable:              true
 
         property var gcsPositionPopup: null
+
+        onCheckedChanged: {
+            if (checked) {
+                if (!gcsPositionPopup) {
+                    gcsPositionPopup = gcsPositionSettingsDialogComponent.createObject(mainWindow)
+                }
+                gcsPositionPopup.open()
+            } else {
+                if (gcsPositionPopup) {
+                    gcsPositionPopup.close()
+                }
+            }
+        }
 
         property var gcsPositionSettingsDialogComponent: Component {
             Popup {
@@ -183,7 +191,98 @@ Rectangle {
                 }
 
                 onClosed: {
+                    gcsPositionButton.checked = false
                     gcsPositionButton.gcsPositionPopup = null
+                }
+            }
+        }
+    }
+
+    QGCButton {
+        id:                     commonToolsButton
+        anchors.rightMargin:    ScreenTools.defaultFontPixelWidth / 2
+        anchors.right:          dataForwardingButton.left
+        anchors.verticalCenter: parent.verticalCenter
+        text:                   qsTr("常用工具")
+        checkable:              true
+
+        property var commonToolsPopup: null
+
+        onCheckedChanged: {
+            if (checked) {
+                if (!commonToolsPopup) {
+                    commonToolsPopup = commonToolsSettingsDialogComponent.createObject(mainWindow)
+                }
+                commonToolsPopup.open()
+            } else {
+                if (commonToolsPopup) {
+                    commonToolsPopup.close()
+                }
+            }
+        }
+
+        property var commonToolsSettingsDialogComponent: Component {
+            Popup {
+                id:                 commonToolsPopupInternal
+                parent:             Overlay.overlay
+                modal:              false
+                focus:              true
+                closePolicy:        Popup.CloseOnEscape
+                x:                  (mainWindow.width - width) / 2
+                y:                  (mainWindow.height - height) / 2
+                width:              commonToolsSettings.implicitWidth
+                height:             commonToolsSettings.implicitHeight
+
+                background: Rectangle {
+                    color: "transparent"
+                }
+
+                contentItem: CommonToolsSettings {
+                    id: commonToolsSettings
+                    popupParent: commonToolsPopupInternal
+                    onCloseClicked: commonToolsPopupInternal.close()
+                }
+
+                MouseArea {
+                    id: commonToolsDragArea
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: ScreenTools.defaultFontPixelHeight * 2.5
+                    cursorShape: Qt.SizeAllCursor
+                    preventStealing: true
+
+                    property real lastX: 0
+                    property real lastY: 0
+
+                    onPressed: {
+                        lastX = mouseX
+                        lastY = mouseY
+                    }
+
+                    onPositionChanged: {
+                        if (pressed) {
+                            commonToolsPopupInternal.x += mouseX - lastX
+                            commonToolsPopupInternal.y += mouseY - lastY
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.topMargin: ScreenTools.defaultFontPixelHeight * 0.3
+                    width: ScreenTools.defaultFontPixelWidth * 20
+                    height: ScreenTools.defaultFontPixelHeight * 0.4
+                    color: "white"
+                    radius: height / 2
+                    opacity: 0.7
+                    z: -1
+                }
+
+                onClosed: {
+                    commonToolsButton.checked = false
+                    commonToolsButton.commonToolsPopup = null
                 }
             }
         }
@@ -195,14 +294,22 @@ Rectangle {
         anchors.right:          parent.right
         anchors.verticalCenter: parent.verticalCenter
         text:                   qsTr("数据转发")
-        onClicked:              {
-            if (!dataForwardingPopup) {
-                dataForwardingPopup = dataForwardingSettingsDialogComponent.createObject(mainWindow)
-            }
-            dataForwardingPopup.open()
-        }
+        checkable:              true
 
         property var dataForwardingPopup: null
+
+        onCheckedChanged: {
+            if (checked) {
+                if (!dataForwardingPopup) {
+                    dataForwardingPopup = dataForwardingSettingsDialogComponent.createObject(mainWindow)
+                }
+                dataForwardingPopup.open()
+            } else {
+                if (dataForwardingPopup) {
+                    dataForwardingPopup.close()
+                }
+            }
+        }
 
         property var dataForwardingSettingsDialogComponent: Component {
             Popup {
@@ -264,6 +371,7 @@ Rectangle {
                 }
 
                 onClosed: {
+                    dataForwardingButton.checked = false
                     dataForwardingButton.dataForwardingPopup = null
                 }
             }

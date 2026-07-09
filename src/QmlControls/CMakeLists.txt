@@ -176,6 +176,7 @@ qt_add_qml_module(QGroundControlControlsModule
         CameraCalcCamera.qml
         CameraCalcGrid.qml
         CameraSection.qml
+        CommonToolsSettings.qml
         CorridorScanEditor.qml
         CorridorScanMapVisual.qml
         DataForwardingSettings.qml
