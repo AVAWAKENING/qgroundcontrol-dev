@@ -33,6 +33,7 @@
 #include "ParameterEditorController.h"
 #include "QGCFileDialogController.h"
 #include "RCChannelMonitorController.h"
+#include "MeasureDistanceController.h"
 #include "ScreenToolsController.h"
 #include "QGCMapPalette.h"
 #include "QGCPalette.h"
@@ -99,6 +100,7 @@ void QGroundControlQmlGlobal::registerQmlTypes()
     qmlRegisterType<RCChannelMonitorController>         ("QGroundControl.Controllers",           1, 0, "RCChannelMonitorController");
     qmlRegisterType<RCToParamDialogController>          ("QGroundControl.Controllers",           1, 0, "RCToParamDialogController");
     qmlRegisterType<ScreenToolsController>              ("QGroundControl.Controllers",           1, 0, "ScreenToolsController");
+    qmlRegisterType<MeasureDistanceController>          ("QGroundControl.Controllers",           1, 0, "MeasureDistanceController");
     qmlRegisterType<TerrainProfile>                     ("QGroundControl.Controls",              1, 0, "TerrainProfile");
     qmlRegisterType<ToolStripAction>                    ("QGroundControl.Controls",              1, 0, "ToolStripAction");
     qmlRegisterType<ToolStripActionList>                ("QGroundControl.Controls",              1, 0, "ToolStripActionList");
@@ -119,6 +121,7 @@ QGroundControlQmlGlobal::QGroundControlQmlGlobal(QObject *parent)
     , _settingsManager(SettingsManager::instance())
     , _corePlugin(QGCCorePlugin::instance())
     , _globalPalette(new QGCPalette(this))
+    , _measureDistanceController(new MeasureDistanceController(this))
 #ifndef QGC_NO_SERIAL_LINK
     , _gpsRtkFactGroup(GPSManager::instance()->gpsRtk()->gpsRtkFactGroup())
 #endif

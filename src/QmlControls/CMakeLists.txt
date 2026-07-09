@@ -14,6 +14,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         MavlinkAction.h
         MavlinkActionManager.cc
         MavlinkActionManager.h
+        MeasureDistanceController.cc
+        MeasureDistanceController.h
         ParameterEditorController.cc
         ParameterEditorController.h
         QGCFenceCircle.cc
