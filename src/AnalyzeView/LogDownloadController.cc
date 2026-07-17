@@ -390,7 +390,7 @@ bool LogDownloadController::_prepareLogDownload()
     const QString ftime = (entry->time().date().year() >= 2010) ? entry->time().toString(QStringLiteral("yyyy-M-d-hh-mm-ss")) : QStringLiteral("UnknownDate");
 
     _downloadData = std::make_unique<LogDownloadData>(entry);
-    _downloadData->filename = QStringLiteral("log_") + QString::number(entry->id()) + "_" + ftime;
+    _downloadData->filename = QStringLiteral("ID") + QString::number(_vehicle->id()) + "-" + QString::number(entry->id()) + "-" + ftime;
 
     if (_vehicle->firmwareType() == MAV_AUTOPILOT_PX4) {
         const QString loggerParam = QStringLiteral("SYS_LOGGER");
