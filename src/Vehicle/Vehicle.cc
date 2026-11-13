@@ -746,6 +746,11 @@ void Vehicle::_handleGpsRawInt(mavlink_message_t& message)
 
     _gpsRawIntMessageAvailable = true;
 
+    // 椭球高：GPS_RAW_INT 为低优先级来源，收到 BLACKBOX_LOW_BANDWIDTH_POSITION 后以其为准
+    if (!_blackboxPositionAvailable && gpsRawInt.alt_ellipsoid != 0) {
+        _altitudeEllipsoidFact.setRawValue(gpsRawInt.alt_ellipsoid / 1000.0);
+    }
+
     if (gpsRawInt.fix_type >= GPS_FIX_TYPE_3D_FIX) {
         if (!_globalPositionIntMessageAvailable) {
             QGeoCoordinate newPosition(gpsRawInt.lat  / (double)1E7, gpsRawInt.lon / (double)1E7, gpsRawInt.alt  / 1000.0);
