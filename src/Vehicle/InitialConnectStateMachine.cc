@@ -300,8 +300,10 @@ void InitialConnectStateMachine::_stateRequestParameters(StateMachine* stateMach
     InitialConnectStateMachine* connectMachine  = static_cast<InitialConnectStateMachine*>(stateMachine);
     Vehicle*                    vehicle         = connectMachine->_vehicle;
 
-    qCDebug(InitialConnectStateMachineLog) << "Skipping parameter download";
-    vehicle->_parameterManager->setParametersReadyWithoutDownload();
+    qCDebug(InitialConnectStateMachineLog) << "_stateRequestParameters";
+    connect(vehicle->_parameterManager, &ParameterManager::loadProgressChanged, connectMachine,
+            &InitialConnectStateMachine::gotProgressUpdate);
+    vehicle->_parameterManager->refreshAllParameters();
 }
 
 void InitialConnectStateMachine::_stateRequestMission(StateMachine* stateMachine)
@@ -317,7 +319,7 @@ void InitialConnectStateMachine::_stateRequestMission(StateMachine* stateMachine
         qCDebug(InitialConnectStateMachineLog) << "_stateRequestMission: Skipping first mission load request due to no primary link";
         connectMachine->advance();
     } else {
-        if (true) {
+        if (sharedLink->linkConfiguration()->isHighLatency() || sharedLink->isLogReplay()) {
             qCDebug(InitialConnectStateMachineLog) << "_stateRequestMission: Skipping first mission load request due to link type";
             vehicle->_firstMissionLoadComplete();
         } else {
@@ -341,7 +343,7 @@ void InitialConnectStateMachine::_stateRequestGeoFence(StateMachine* stateMachin
         qCDebug(InitialConnectStateMachineLog) << "_stateRequestGeoFence: Skipping first geofence load request due to no primary link";
         connectMachine->advance();
     } else {
-        if (true) {
+        if (sharedLink->linkConfiguration()->isHighLatency() || sharedLink->isLogReplay()) {
             qCDebug(InitialConnectStateMachineLog) << "_stateRequestGeoFence: Skipping first geofence load request due to link type";
             vehicle->_firstGeoFenceLoadComplete();
         } else {
@@ -371,7 +373,7 @@ void InitialConnectStateMachine::_stateRequestRallyPoints(StateMachine* stateMac
         qCDebug(InitialConnectStateMachineLog) << "_stateRequestRallyPoints: Skipping first rally point load request due to no primary link";
         connectMachine->advance();
     } else {
-        if (true) {
+        if (sharedLink->linkConfiguration()->isHighLatency() || sharedLink->isLogReplay()) {
             qCDebug(InitialConnectStateMachineLog) << "_stateRequestRallyPoints: Skipping first rally point load request due to link type";
             vehicle->_firstRallyPointLoadComplete();
         } else {
