@@ -35,7 +35,6 @@
         { "vendorID": 12677, "productID": 58,       "boardClass": "Pixhawk",    "name": "ARK Pi6X" },
         { "vendorID": 12677, "productID": 59,       "boardClass": "Pixhawk",    "name": "ARK FPV" },
 
-        { "vendorID": 1155, "productID": 22336,     "boardClass": "Pixhawk",    "name": "ArduPilot ChibiOS" },
         { "vendorID": 4617, "productID": 22336,     "boardClass": "Pixhawk",    "name": "ArduPilot ChibiOS" },
         { "vendorID": 4617, "productID": 22337,     "boardClass": "Pixhawk",    "name": "ArduPilot ChibiOS" },
 
@@ -58,6 +57,7 @@
         { "vendorID": 4292, "productID": 60000,     "boardClass": "SiK Radio",  "name": "SiK Radio",            "comment": "SILabs Radio" },
         { "vendorID": 12346, "productID": 4097,     "boardClass": "SiK Radio",  "name": "DroneBridge Radio",    "comment": "ESP32-based telemetry radio" },
         { "vendorID": 6790, "productID": 21974,     "boardClass": "SiK Radio",  "name": "Microhard P900",    "comment": "Microhard p900 telemetry radio" },
+        { "vendorID": 1155, "productID": 22336,     "boardClass": "SiK Radio",    "name": "SIYI FT24 MICROUSB" },
 
         { "vendorID": 5446, "productID": 424,       "boardClass": "RTK GPS",    "name": "U-blox RTK GPS",       "comment": "U-blox RTK GPS (M8P)" },
         { "vendorID": 5446, "productID": 425,       "boardClass": "RTK GPS",    "name": "U-blox RTK GPS",       "comment": "U-blox RTK GPS (F9P)" },
